@@ -5,12 +5,12 @@
 # for a reason nobody acts on gets ignored, and an ignored red cross is worse
 # than no check at all.
 #
-# The parsers are the reason this matters. They read the exam boards' own PDFs,
-# and boards reissue those: a new version, a slightly different table layout.
-# A parser that starts producing 40 spec points where it produced 129 does not
-# crash — it quietly seeds a worse curriculum. `bun test` covers the scheduler
-# and pacing maths; the seed counts are checked by hand against
-# supabase/seed/README.md after any parser change.
+# Three checks: the TypeScript typecheck, the test suite, and the curriculum
+# parsers. The last one is the reason this file earns its keep. The parsers read
+# the exam boards' own PDFs, and boards reissue those: a new version, a slightly
+# different table layout. A parser that starts producing 40 spec points where it
+# produced 129 does not crash — it quietly seeds a worse curriculum, which shows
+# up weeks later as a student missing half their topics.
 name: CI
 
 on:
@@ -39,3 +39,20 @@ jobs:
 
       - name: Test
         run: bun test
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # pypdf only — the parsers deliberately depend on nothing else, so this
+      # stays a one-line install rather than a requirements file.
+      - name: Install pypdf
+        run: pip install --quiet pypdf
+
+      # ~70s: it parses all seventeen specification PDFs and checks each one
+      # still reproduces its committed seed. Slower than the rest of the file
+      # put together, and worth it — this is the check that catches a board
+      # reissuing a spec under us.
+      - name: Curriculum parsers reproduce the committed seed
+        run: python3 test_seed_matches.py
+        working-directory: scripts/curriculum
