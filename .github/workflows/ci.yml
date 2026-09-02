@@ -1,0 +1,41 @@
+# Runs the checks that were previously only run by hand.
+#
+# Deliberately just the two that already exist — the test suite and the
+# TypeScript check. Nothing here lints, formats or deploys: a check that fails
+# for a reason nobody acts on gets ignored, and an ignored red cross is worse
+# than no check at all.
+#
+# The parsers are the reason this matters. They read the exam boards' own PDFs,
+# and boards reissue those: a new version, a slightly different table layout.
+# A parser that starts producing 40 spec points where it produced 129 does not
+# crash — it quietly seeds a worse curriculum. `bun test` covers the scheduler
+# and pacing maths; the seed counts are checked by hand against
+# supabase/seed/README.md after any parser change.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # --frozen-lockfile so CI fails on a lockfile that drifted from
+      # package.json, rather than silently resolving different versions than
+      # the ones that were actually tested locally.
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Test
+        run: bun test
