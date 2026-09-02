@@ -44,10 +44,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      # pypdf only — the parsers deliberately depend on nothing else, so this
-      # stays a one-line install rather than a requirements file.
-      - name: Install pypdf
-        run: pip install --quiet pypdf
+      # cryptography is not optional despite the parsers never importing it:
+      # several of the board PDFs are AES-encrypted (owner password set, no user
+      # password), and pypdf raises DependencyError decrypting them without it.
+      # It went unnoticed locally because another package had already pulled it
+      # in — this CI run on a clean machine is what surfaced it.
+      - name: Install parser dependencies
+        run: pip install --quiet pypdf cryptography
 
       # ~70s: it parses all seventeen specification PDFs and checks each one
       # still reproduces its committed seed. Slower than the rest of the file
