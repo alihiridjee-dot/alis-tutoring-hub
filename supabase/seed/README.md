@@ -83,6 +83,19 @@ syllabus column on `topics` and a matching field on `student_enrolments`.
     left join public.spec_points sp on sp.topic_id = t.id
     group by 1, 2, 3 order by 1, 2, 3;
 
+## The pypdf version is part of the output
+
+Regenerate with `pypdf==5.9.0`. Layout-mode extraction is pypdf's own algorithm
+and it changes between releases: on the current version, five of the seventeen
+specifications produce different statement text, and OCR A-Level Biology A comes
+back with guidance-column bleed in 6.1.2 — the exact failure `parse_ocr.py` was
+written to prevent.
+
+The seed committed here, and the curriculum loaded into the live project, came
+from 5.9.0. CI pins it for that reason. Bumping the pin is fine, but it is a
+deliberate change: bump, regenerate, read the diff, and commit the new seed with
+it — never regenerate on whatever pypdf happens to be installed.
+
 ## Known limitations
 
 - **Equations are degraded.** Formulae are drawn as positioned glyphs, so text

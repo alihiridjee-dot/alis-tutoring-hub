@@ -44,13 +44,21 @@ jobs:
         with:
           python-version: "3.11"
 
+      # pypdf is PINNED, and the pin is load-bearing. Layout-mode extraction is
+      # pypdf's own algorithm, so its output moves between releases: on the
+      # latest, five specifications come out with different statement text and
+      # OCR Biology A regains the guidance-column bleed that parse_ocr.py exists
+      # to prevent. The committed seed — and the curriculum in the live database
+      # — was produced by 5.9.0, so that is what reproduces it. Moving the pin is
+      # a deliberate act: bump it, regenerate, read the diff, commit both.
+      #
       # cryptography is not optional despite the parsers never importing it:
       # several of the board PDFs are AES-encrypted (owner password set, no user
       # password), and pypdf raises DependencyError decrypting them without it.
       # It went unnoticed locally because another package had already pulled it
       # in — this CI run on a clean machine is what surfaced it.
       - name: Install parser dependencies
-        run: pip install --quiet pypdf cryptography
+        run: pip install --quiet "pypdf==5.9.0" cryptography
 
       # ~70s: it parses all seventeen specification PDFs and checks each one
       # still reproduces its committed seed. Slower than the rest of the file
