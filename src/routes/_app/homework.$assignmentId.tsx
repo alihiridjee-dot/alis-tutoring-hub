@@ -10,10 +10,21 @@ import { useState } from "react";
 import { Link, createFileRoute, useParams } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { ErrorNote, PageHeader, Spinner } from "@/components/app/Shared";
+import { ErrorNote, PageHeader, Ring, SectionHeading, Spinner } from "@/components/app/Shared";
+import { Confetti, Mascot } from "@/components/app/Doodles";
 import { useViewer } from "@/lib/session";
 import { useAssignment, useSubmitHomework } from "@/lib/homework";
 import { relativeDay } from "@/lib/week";
+import { cn } from "@/lib/utils";
+
+/** Green for a strong mark, amber for a middling one, rose for a weak one. */
+function scoreTint(score: number | string | null | undefined): string {
+  if (score == null) return "tint-primary";
+  const n = Number(score);
+  if (n >= 70) return "tint-emerald";
+  if (n >= 45) return "tint-amber";
+  return "tint-rose";
+}
 
 export const Route = createFileRoute("/_app/homework/$assignmentId")({ component: HomeworkDetail });
 
@@ -34,9 +45,12 @@ function HomeworkDetail() {
     return (
       <div className="space-y-4">
         <PageHeader title="Not found" />
-        <p className="text-sm text-muted-foreground">
-          This homework doesn't exist, or isn't yours.{" "}
-          <Link to="/homework" className="underline">
+        <p className="text-sm font-medium text-muted-foreground">
+          This homework doesn&apos;t exist, or isn&apos;t yours.{" "}
+          <Link
+            to="/homework"
+            className="font-bold text-[color:var(--primary)] underline decoration-2 underline-offset-2"
+          >
             Back to homework
           </Link>
         </p>
@@ -49,62 +63,83 @@ function HomeworkDetail() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Homework" title={a.resource?.title ?? "Homework"} />
+      <PageHeader eyebrow="Homework" title={a.resource?.title ?? "Homework"}>
+        <Link to="/homework" className="btn-soft rounded-xl px-4 py-2 text-xs">
+          All homework
+        </Link>
+      </PageHeader>
 
-      <div className="premium-card space-y-3 rounded-2xl p-5">
-        {a.due_at ? (
-          <p className="text-sm text-muted-foreground">Due {relativeDay(a.due_at)}</p>
-        ) : null}
+      <div className="pop-card space-y-4 p-5">
+        {a.due_at ? <span className="chip">Due {relativeDay(a.due_at)}</span> : null}
         {a.resource?.instructions ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed">{a.resource.instructions}</p>
+          <p className="whitespace-pre-wrap text-[15px] leading-relaxed">
+            {a.resource.instructions}
+          </p>
         ) : null}
         {a.note ? (
-          <div className="surface-soft rounded-xl p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Note from Ali
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-sm">{a.note}</p>
+          <div className="surface-soft p-3.5">
+            <p className="eyebrow">Note from Ali</p>
+            <p className="mt-2 whitespace-pre-wrap text-sm font-medium">{a.note}</p>
           </div>
         ) : null}
       </div>
 
       {marked && a.submission ? (
-        <div className="premium-card space-y-2 rounded-2xl p-5">
-          <p className="eyebrow">Your mark</p>
-          <p className="font-display text-3xl font-bold">
-            {a.submission.score_pct == null
-              ? "—"
-              : `${Math.round(Number(a.submission.score_pct))}%`}
-            {a.submission.grade ? (
-              <span className="ml-2 text-base font-semibold text-muted-foreground">
-                {a.submission.grade}
-              </span>
-            ) : null}
-          </p>
-          {a.submission.feedback ? (
-            <p className="whitespace-pre-wrap text-sm leading-relaxed">{a.submission.feedback}</p>
-          ) : null}
+        <div
+          className={cn(
+            // The mark colours its own card: a 38% and an 88% should not look
+            // like the same event.
+            scoreTint(a.submission.score_pct),
+            "banner-strip relative overflow-hidden p-5 sm:p-6",
+          )}
+        >
+          {Number(a.submission.score_pct ?? 0) >= 80 ? <Confetti /> : null}
+          <div className="flex flex-wrap items-center gap-5">
+            {a.submission.score_pct == null ? (
+              <Mascot name="star" size={80} idle={false} />
+            ) : (
+              <Ring value={Number(a.submission.score_pct)} size={96} stroke={11}>
+                <span className="numeral text-xl">
+                  {Math.round(Number(a.submission.score_pct))}%
+                </span>
+              </Ring>
+            )}
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow">Your mark</p>
+              <p className="font-display mt-1 text-2xl font-extrabold">
+                {a.submission.grade ? a.submission.grade : "Marked"}
+              </p>
+              {a.submission.feedback ? (
+                <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed">
+                  {a.submission.feedback}
+                </p>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
 
       {a.questions.length > 0 ? (
         <section className="space-y-3">
-          <h2 className="font-display text-lg font-bold tracking-tight">Questions</h2>
+          <SectionHeading title="Questions" hint={`${a.questions.length} to answer`} />
           {a.questions.map((q, i) => (
-            <div key={q.id} className="premium-card rounded-2xl p-4">
-              <p className="text-sm font-medium">
-                {i + 1}. {q.prompt}{" "}
-                <span className="text-xs text-muted-foreground">
-                  ({q.marks} mark{q.marks === 1 ? "" : "s"})
-                </span>
-              </p>
+            <div key={q.id} className="pop-card p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <span className="icon-tile numeral size-8 shrink-0 text-sm">{i + 1}</span>
+                <p className="flex-1 text-[15px] font-semibold leading-snug">
+                  {q.prompt}{" "}
+                  <span className="chip ml-1 align-middle">
+                    {q.marks} mark{q.marks === 1 ? "" : "s"}
+                  </span>
+                </p>
+              </div>
               <textarea
                 value={answers[q.id] ?? ""}
                 onChange={(e) => setAnswers((s) => ({ ...s, [q.id]: e.target.value }))}
                 disabled={submitted}
                 rows={3}
                 placeholder={submitted ? "Submitted" : "Your answer"}
-                className="premium-input mt-2 w-full rounded-xl p-3 text-sm disabled:opacity-60"
+                className="premium-input mt-3 w-full rounded-xl p-3.5 text-sm disabled:opacity-60"
               />
             </div>
           ))}
@@ -112,10 +147,8 @@ function HomeworkDetail() {
       ) : null}
 
       {!submitted ? (
-        <div className="premium-card space-y-3 rounded-2xl p-5">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Anything to tell Ali?
-          </label>
+        <div className="pop-card space-y-3 p-5">
+          <label className="eyebrow">Anything to tell Ali?</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -141,16 +174,19 @@ function HomeworkDetail() {
                 },
               )
             }
-            className="btn-premium rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
+            className="btn-hero rounded-xl px-6 py-3 text-sm disabled:opacity-60"
           >
             {submit.isPending ? "Submitting…" : "Hand it in"}
           </button>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          Handed in {a.submission?.submitted_at ? relativeDay(a.submission.submitted_at) : ""}.
-          {marked ? "" : " Ali will mark it soon."}
-        </p>
+        <div className="surface-soft flex items-center gap-4 p-4">
+          <Mascot name="rocket" mood={marked ? "proud" : "happy"} size={56} />
+          <p className="text-sm font-semibold">
+            Handed in {a.submission?.submitted_at ? relativeDay(a.submission.submitted_at) : ""}.
+            {marked ? "" : " Ali will mark it soon."}
+          </p>
+        </div>
       )}
     </div>
   );

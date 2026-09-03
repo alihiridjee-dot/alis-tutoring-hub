@@ -7,10 +7,17 @@
  */
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Trash2 } from "lucide-react";
+import { BookOpen, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { EmptyState, ErrorNote, PageHeader, Spinner } from "@/components/app/Shared";
+import {
+  EmptyState,
+  ErrorNote,
+  PageHeader,
+  SectionHeading,
+  Spinner,
+} from "@/components/app/Shared";
+import { subjectTint } from "@/lib/subject";
 import { BOARD_LABEL, LEVEL_LABEL, SUBJECT_LABEL } from "@/lib/session";
 import {
   useAllTopics,
@@ -47,16 +54,21 @@ function TutorCurriculum() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Tutor" title="Curriculum" />
+      <PageHeader
+        eyebrow="Tutor"
+        title="Curriculum"
+        icon={BookOpen}
+        lede="Fill the gaps in a seeded spec, or author a course outright. Never invent a spec point — codes and titles come from the board."
+      />
 
-      <section className="premium-card space-y-3 rounded-2xl p-5">
-        <h2 className="font-display text-base font-bold tracking-tight">Add a topic</h2>
+      <section className="pop-card space-y-3 p-5">
+        <SectionHeading title="Add a topic" />
         <div className="grid gap-2 sm:grid-cols-2">
           <input
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
             placeholder="Topic title, e.g. Cell biology"
-            className="premium-input h-10 rounded-xl px-3 text-sm sm:col-span-2"
+            className="premium-input h-11 rounded-xl px-3.5 text-sm font-medium sm:col-span-2"
           />
           <select
             value={form.subject}
@@ -108,7 +120,7 @@ function TutorCurriculum() {
                 },
               )
             }
-            className="btn-premium h-10 rounded-xl px-4 text-sm font-semibold disabled:opacity-50"
+            className="btn-hero h-11 rounded-xl px-5 text-sm disabled:opacity-50"
           >
             Add topic
           </button>
@@ -117,24 +129,28 @@ function TutorCurriculum() {
 
       {topics.length === 0 ? (
         <EmptyState
+          mascot="books"
           title="No topics yet"
           body="Add a topic above, or load the curriculum in bulk with a seed script — authoring a full specification by hand here would take a very long time."
         />
       ) : (
         <div className="grid gap-4 md:grid-cols-[20rem_1fr]">
-          <ul className="space-y-1">
+          <ul className="scroll-slim max-h-[32rem] space-y-2 overflow-y-auto pr-1">
             {topics.map((t) => (
               <li key={t.id}>
                 <button
                   type="button"
                   onClick={() => setSelected(t.id)}
                   className={cn(
-                    "w-full rounded-xl px-3 py-2 text-left text-sm transition-colors",
-                    selected === t.id ? "bg-card font-semibold" : "hover:bg-card/60",
+                    subjectTint(t.subject),
+                    "w-full px-3.5 py-2.5 text-left text-sm",
+                    selected === t.id
+                      ? "pop-card"
+                      : "pop-card pop-card-flat opacity-70 hover:opacity-100",
                   )}
                 >
-                  <span className="block truncate">{t.title}</span>
-                  <span className="block text-xs text-muted-foreground">
+                  <span className="font-display block truncate font-extrabold">{t.title}</span>
+                  <span className="mt-0.5 block text-xs font-semibold text-muted-foreground">
                     {SUBJECT_LABEL[t.subject]} · {BOARD_LABEL[t.board]} · {LEVEL_LABEL[t.level]}
                   </span>
                 </button>
@@ -145,7 +161,9 @@ function TutorCurriculum() {
           {selected ? (
             <SpecPointEditor topicId={selected} />
           ) : (
-            <p className="text-sm text-muted-foreground">Pick a topic to edit its spec points.</p>
+            <p className="surface-soft p-5 text-sm font-semibold text-muted-foreground">
+              Pick a topic to edit its spec points.
+            </p>
           )}
         </div>
       )}
@@ -164,23 +182,21 @@ function SpecPointEditor({ topicId }: { topicId: string }) {
   const points = pointsQ.data ?? [];
 
   return (
-    <div className="premium-card space-y-3 rounded-2xl p-4">
-      <h3 className="font-display text-sm font-bold tracking-tight">
-        Spec points ({points.length})
-      </h3>
+    <div className="pop-card space-y-3 p-4 sm:p-5">
+      <SectionHeading title="Spec points" hint={`${points.length} in this topic`} />
 
       <div className="grid gap-2 sm:grid-cols-[8rem_1fr_5rem_auto]">
         <input
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="4.1.2"
-          className="premium-input h-10 rounded-xl px-3 text-sm"
+          className="premium-input h-11 rounded-xl px-3 text-sm font-semibold"
         />
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Spec point title, exactly as the board words it"
-          className="premium-input h-10 rounded-xl px-3 text-sm"
+          className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
         />
         <input
           value={weight}
@@ -188,7 +204,7 @@ function SpecPointEditor({ topicId }: { topicId: string }) {
           inputMode="decimal"
           placeholder="1"
           title="How much of a week's work this point represents"
-          className="premium-input h-10 rounded-xl px-3 text-sm"
+          className="premium-input h-11 rounded-xl px-3 text-sm font-semibold"
         />
         <button
           type="button"
@@ -212,7 +228,7 @@ function SpecPointEditor({ topicId }: { topicId: string }) {
               },
             )
           }
-          className="btn-premium h-10 rounded-xl px-4 text-sm font-semibold disabled:opacity-50"
+          className="btn-hero h-11 rounded-xl px-5 text-sm disabled:opacity-50"
         >
           Add
         </button>
@@ -220,14 +236,13 @@ function SpecPointEditor({ topicId }: { topicId: string }) {
 
       {pointsQ.isLoading ? <Spinner label="Loading points" /> : null}
 
-      <ul className="space-y-1">
+      <ul className="scroll-slim max-h-[26rem] space-y-2 overflow-y-auto pr-1">
         {points.map((sp) => (
-          <li
-            key={sp.id}
-            className="surface-soft flex items-center gap-2 rounded-xl px-3 py-2 text-sm"
-          >
-            <span className="font-mono text-xs text-muted-foreground">{sp.code}</span>
-            <span className="min-w-0 flex-1 truncate">{sp.title}</span>
+          <li key={sp.id} className="surface-soft flex items-center gap-2.5 px-3 py-2.5 text-sm">
+            <span className="numeral shrink-0 rounded-md bg-[color:color-mix(in_oklab,var(--tint)_12%,transparent)] px-1.5 py-0.5 text-[10px] text-[color:var(--tint)]">
+              {sp.code}
+            </span>
+            <span className="min-w-0 flex-1 truncate font-medium">{sp.title}</span>
             <button
               type="button"
               onClick={() =>
@@ -237,7 +252,7 @@ function SpecPointEditor({ topicId }: { topicId: string }) {
                 })
               }
               aria-label={`Delete ${sp.code}`}
-              className="btn-soft rounded-lg p-1.5"
+              className="tint-rose btn-soft rounded-lg p-2"
             >
               <Trash2 className="size-3.5" aria-hidden />
             </button>

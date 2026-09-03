@@ -13,7 +13,16 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 
-import { EmptyState, ErrorNote, PageHeader, Spinner } from "@/components/app/Shared";
+import { NotebookPen } from "lucide-react";
+
+import {
+  EmptyState,
+  ErrorNote,
+  PageHeader,
+  SectionHeading,
+  Spinner,
+} from "@/components/app/Shared";
+import { subjectTint } from "@/lib/subject";
 import { BOARD_LABEL, LEVEL_LABEL, SUBJECT_LABEL, useViewer } from "@/lib/session";
 import {
   useAllTopics,
@@ -62,24 +71,29 @@ function TutorResources() {
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Tutor" title="Resources and homework" />
+      <PageHeader
+        eyebrow="Tutor"
+        title="Resources and homework"
+        icon={NotebookPen}
+        lede="Build a task once, set it to whoever needs it. The spec points you attach are what a mark advances."
+      />
 
       {/* ── Build a task ─────────────────────────────────────────────── */}
-      <section className="premium-card space-y-3 rounded-2xl p-5">
-        <h2 className="font-display text-base font-bold tracking-tight">New task</h2>
+      <section className="pop-card space-y-3 p-5">
+        <SectionHeading title="New task" hint="Goes into your library, not to a student" />
 
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="Title, e.g. Osmosis practice questions"
-          className="premium-input h-10 w-full rounded-xl px-3 text-sm"
+          className="premium-input h-11 w-full rounded-xl px-3.5 text-sm font-medium"
         />
         <textarea
           value={instructions}
           onChange={(e) => setInstructions(e.target.value)}
           rows={3}
           placeholder="Instructions the student sees every time this is set"
-          className="premium-input w-full rounded-xl p-3 text-sm"
+          className="premium-input w-full rounded-xl p-3.5 text-sm font-medium"
         />
 
         <div className="grid gap-2 sm:grid-cols-3">
@@ -90,7 +104,7 @@ function TutorResources() {
               setTopicId(null);
               setLinked([]);
             }}
-            className="premium-input h-10 rounded-xl px-3 text-sm"
+            className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
           >
             {SUBJECTS.map((s) => (
               <option key={s} value={s}>
@@ -105,7 +119,7 @@ function TutorResources() {
               setTopicId(null);
               setLinked([]);
             }}
-            className="premium-input h-10 rounded-xl px-3 text-sm"
+            className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
           >
             {LEVELS.map((l) => (
               <option key={l} value={l}>
@@ -116,7 +130,7 @@ function TutorResources() {
           <select
             value={topicId ?? ""}
             onChange={(e) => setTopicId(e.target.value || null)}
-            className="premium-input h-10 rounded-xl px-3 text-sm"
+            className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
           >
             <option value="">Pick a topic…</option>
             {topics.map((t) => (
@@ -129,10 +143,8 @@ function TutorResources() {
 
         {topicId ? (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Spec points this covers
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="eyebrow">Spec points this covers</p>
+            <p className="mt-1.5 text-xs font-medium text-muted-foreground">
               Marking this task advances exactly these points. Attach none and the mark moves
               nothing.
             </p>
@@ -147,8 +159,8 @@ function TutorResources() {
                       setLinked((l) => (on ? l.filter((x) => x !== sp.id) : [...l, sp.id]))
                     }
                     className={cn(
-                      "rounded-lg border border-border/70 px-2.5 py-1 text-xs transition-colors",
-                      on ? "border-primary bg-primary/10 text-primary" : "hover:bg-card",
+                      "numeral rounded-lg px-2.5 py-1.5 text-xs transition-all",
+                      on ? "btn-solid" : "btn-soft",
                     )}
                   >
                     {sp.code}
@@ -186,18 +198,18 @@ function TutorResources() {
               },
             )
           }
-          className="btn-premium rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          className="btn-hero rounded-xl px-5 py-2.5 text-sm disabled:opacity-50"
         >
           {createResource.isPending ? "Saving…" : "Add to library"}
         </button>
       </section>
 
       {/* ── Set it ───────────────────────────────────────────────────── */}
-      <section className="premium-card space-y-3 rounded-2xl p-5">
-        <h2 className="font-display text-base font-bold tracking-tight">Set homework</h2>
+      <section className="pop-card space-y-3 p-5">
+        <SectionHeading title="Set homework" hint="One student, one due date" />
 
         {resources.length === 0 || students.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="surface-soft p-4 text-sm font-semibold text-muted-foreground">
             {resources.length === 0
               ? "Build a task above first."
               : "No students to set work for yet."}
@@ -208,7 +220,7 @@ function TutorResources() {
               <select
                 value={assignResource}
                 onChange={(e) => setAssignResource(e.target.value)}
-                className="premium-input h-10 rounded-xl px-3 text-sm"
+                className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
               >
                 <option value="">Which task…</option>
                 {resources.map((r) => (
@@ -220,7 +232,7 @@ function TutorResources() {
               <select
                 value={assignTo}
                 onChange={(e) => setAssignTo(e.target.value)}
-                className="premium-input h-10 rounded-xl px-3 text-sm"
+                className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
               >
                 <option value="">Which student…</option>
                 {students.map((s) => (
@@ -233,13 +245,13 @@ function TutorResources() {
                 type="date"
                 value={dueAt}
                 onChange={(e) => setDueAt(e.target.value)}
-                className="premium-input h-10 rounded-xl px-3 text-sm"
+                className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
               />
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Note for this student, this time (optional)"
-                className="premium-input h-10 rounded-xl px-3 text-sm"
+                className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
               />
             </div>
 
@@ -266,7 +278,7 @@ function TutorResources() {
                   },
                 )
               }
-              className="btn-premium rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
+              className="btn-hero rounded-xl px-5 py-2.5 text-sm disabled:opacity-50"
             >
               {assign.isPending ? "Setting…" : "Set homework"}
             </button>
@@ -275,21 +287,27 @@ function TutorResources() {
       </section>
 
       {/* ── Library ──────────────────────────────────────────────────── */}
-      <section className="space-y-2">
-        <h2 className="font-display text-lg font-bold tracking-tight">Your library</h2>
+      <section className="space-y-3">
+        <SectionHeading
+          title="Your library"
+          hint={`${resources.length} task${resources.length === 1 ? "" : "s"}`}
+        />
         {resources.length === 0 ? (
           <EmptyState
+            mascot="books"
             title="Nothing in the library yet"
             body="Tasks you build appear here, ready to set to any student."
           />
         ) : (
-          <ul className="space-y-2">
+          <ul className="grid gap-3 sm:grid-cols-2">
             {resources.map((r) => (
-              <li key={r.id} className="premium-card rounded-2xl p-4">
-                <p className="text-sm font-medium">{r.title}</p>
-                <p className="text-xs text-muted-foreground">
-                  {SUBJECT_LABEL[r.subject]} · {LEVEL_LABEL[r.level]} · {r.kind}
-                </p>
+              <li key={r.id} className={cn(subjectTint(r.subject), "pop-card pop-card-banded p-4")}>
+                <p className="font-display text-base font-extrabold">{r.title}</p>
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <span className="chip">{SUBJECT_LABEL[r.subject]}</span>
+                  <span className="tint-slate chip">{LEVEL_LABEL[r.level]}</span>
+                  <span className="tint-slate chip capitalize">{r.kind}</span>
+                </div>
               </li>
             ))}
           </ul>

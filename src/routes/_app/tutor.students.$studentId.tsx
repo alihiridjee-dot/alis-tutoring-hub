@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from "react";
 import { Link, createFileRoute, useParams } from "@tanstack/react-router";
-import { Minus, Plus, X } from "lucide-react";
+import { CalendarDays, Minus, NotebookPen, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -17,9 +17,11 @@ import {
   MasteryPill,
   Meter,
   PageHeader,
+  SectionHeading,
   Spinner,
   StatTile,
 } from "@/components/app/Shared";
+import { subjectIcon, subjectTint } from "@/lib/subject";
 import {
   BOARD_LABEL,
   LEVEL_LABEL,
@@ -116,7 +118,7 @@ function StudentDetail() {
         eyebrow={SOURCE_LABEL[student.source]}
         title={student.display_name || student.email || "Student"}
       >
-        <Link to="/tutor" className="btn-soft rounded-xl px-3 py-1.5 text-sm">
+        <Link to="/tutor" className="btn-soft rounded-xl px-4 py-2 text-sm">
           All students
         </Link>
       </PageHeader>
@@ -131,22 +133,22 @@ function StudentDetail() {
           label="Sorted"
           value={student.confidence_seeded_at ? "Yes" : "Not yet"}
           hint={student.confidence_seeded_at ? "Confidence captured" : "Happens on first login"}
+          tint={student.confidence_seeded_at ? "tint-emerald" : "tint-amber"}
         />
         <StatTile
           label="Subjects"
           value={`${enrolments.length}`}
           hint={student.level ? LEVEL_LABEL[student.level] : "No level set"}
+          tint={student.level ? "tint-primary" : "tint-amber"}
         />
       </div>
 
       {/* ── Course setup ─────────────────────────────────────────────── */}
-      <section className="premium-card space-y-4 rounded-2xl p-5">
-        <h2 className="font-display text-base font-bold tracking-tight">Course</h2>
+      <section className="pop-card space-y-5 p-5">
+        <SectionHeading title="Course" hint="Level is shared; the board is per subject" />
 
         <div>
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Level (shared across subjects)
-          </label>
+          <label className="eyebrow">Level (shared across subjects)</label>
           <div className="mt-2 flex flex-wrap gap-2">
             {LEVELS.map((l) => (
               <button
@@ -159,10 +161,8 @@ function StudentDetail() {
                   })
                 }
                 className={cn(
-                  "rounded-xl border border-border/70 px-3 py-1.5 text-xs font-medium transition-colors",
-                  student.level === l
-                    ? "border-primary bg-primary/10 text-primary"
-                    : "hover:bg-card",
+                  "rounded-xl px-4 py-2 text-xs",
+                  student.level === l ? "btn-solid" : "btn-soft",
                 )}
               >
                 {LEVEL_LABEL[l]}
@@ -172,10 +172,8 @@ function StudentDetail() {
         </div>
 
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Subjects and boards
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
+          <p className="eyebrow">Subjects and boards</p>
+          <p className="mt-1.5 text-xs font-medium text-muted-foreground">
             Board is per subject — a student can sit AQA Biology and OCR Physics. Pick a board to
             enrol them; pick a different one to switch. Removing takes the whole subject off their
             hub.
@@ -186,9 +184,20 @@ function StudentDetail() {
               return (
                 <div
                   key={subject}
-                  className="surface-soft flex flex-wrap items-center gap-2 rounded-xl px-3 py-2"
+                  className={cn(
+                    subjectTint(subject),
+                    "surface-soft flex flex-wrap items-center gap-2 px-3 py-2.5",
+                  )}
                 >
-                  <span className="w-24 text-sm font-medium">{SUBJECT_LABEL[subject]}</span>
+                  <span className="font-display flex w-28 items-center gap-1.5 text-sm font-extrabold">
+                    {(() => {
+                      const Icon = subjectIcon(subject);
+                      return Icon ? (
+                        <Icon className="size-4 text-[color:var(--tint)]" aria-hidden />
+                      ) : null;
+                    })()}
+                    {SUBJECT_LABEL[subject]}
+                  </span>
                   {BOARDS.map((board) => (
                     <button
                       key={board}
@@ -217,10 +226,8 @@ function StudentDetail() {
                         );
                       }}
                       className={cn(
-                        "rounded-lg border border-border/70 px-2.5 py-1 text-xs transition-colors disabled:opacity-50",
-                        current?.board === board
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "hover:bg-card",
+                        "rounded-lg px-3 py-1.5 text-xs disabled:opacity-50",
+                        current?.board === board ? "btn-solid" : "btn-soft",
                       )}
                     >
                       {BOARD_LABEL[board]}
@@ -248,22 +255,24 @@ function StudentDetail() {
                           onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
                         });
                       }}
-                      className="ml-auto inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                      className="btn-ghost ml-auto inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs hover:text-[color:var(--destructive)] disabled:opacity-50"
                     >
                       <X className="size-3.5" aria-hidden />
                       Remove
                     </button>
                   ) : (
-                    <span className="ml-auto text-xs text-muted-foreground">Not enrolled</span>
+                    <span className="ml-auto text-xs font-semibold text-muted-foreground">
+                      Not enrolled
+                    </span>
                   )}
 
                   {current ? (
-                    <div className="flex w-full flex-wrap items-center gap-2 border-t border-border/60 pt-2">
+                    <div className="flex w-full flex-wrap items-center gap-2 border-t border-dashed border-[color:var(--edge)] pt-2.5">
                       {/* Only shown where the board actually runs more than one
                           syllabus — offering a single-option picker everywhere
                           would be noise. */}
                       {(syllabuses.get(`${subject}:${current.board}`) ?? []).length > 1 ? (
-                        <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                           Syllabus
                           <select
                             value={current.syllabus || ""}
@@ -296,7 +305,7 @@ function StudentDetail() {
                         <span className="chip text-xs">{current.syllabus}</span>
                       ) : null}
 
-                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <label className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
                         Exam date
                         <input
                           type="date"
@@ -320,7 +329,7 @@ function StudentDetail() {
                       </label>
 
                       {!current.exam_date ? (
-                        <span className="text-xs text-amber-700 dark:text-amber-400">
+                        <span className="tint-amber chip">
                           No exam date — their year can&apos;t be planned yet.
                         </span>
                       ) : null}
@@ -335,11 +344,13 @@ function StudentDetail() {
 
       {/* ── This week ────────────────────────────────────────────────── */}
       <section className="space-y-3">
-        <h2 className="font-display text-lg font-bold tracking-tight">
-          Week of {formatWeek(weekStartKey())}
-        </h2>
+        <SectionHeading
+          title={`Week of ${formatWeek(weekStartKey())}`}
+          hint="Add or drop points, then save to pin this week"
+        />
         {enrolments.length === 0 ? (
           <EmptyState
+            mascot="books"
             title="No subjects yet"
             body="Add a subject and board above to plan their week."
           />
@@ -364,8 +375,8 @@ function StudentDetail() {
 
       {/* ── Progress by topic ────────────────────────────────────────── */}
       {topics.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="font-display text-lg font-bold tracking-tight">Progress by topic</h2>
+        <section className="space-y-3">
+          <SectionHeading title="Progress by topic" hint={`${topics.length} topics`} />
           {topics.map((t) => {
             const pts = byTopic.get(t.id) ?? [];
             const m = pts.length
@@ -378,17 +389,17 @@ function StudentDetail() {
                 )
               : 0;
             return (
-              <div key={t.id} className="premium-card rounded-2xl p-4">
+              <div key={t.id} className={cn(subjectTint(t.subject), "pop-card pop-card-flat p-4")}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{t.title}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-display truncate text-base font-extrabold">{t.title}</p>
+                    <p className="text-xs font-semibold text-muted-foreground">
                       {SUBJECT_LABEL[t.subject]} · {pts.length} points
                     </p>
                   </div>
                   <MasteryPill mastery={m} hasCard={m > 0} />
                 </div>
-                <Meter value={m} className="mt-3" />
+                <Meter value={m} className="mt-3" label size="sm" />
               </div>
             );
           })}
@@ -396,20 +407,22 @@ function StudentDetail() {
       ) : null}
 
       {/* ── Private notes ────────────────────────────────────────────── */}
-      <section className="premium-card space-y-3 rounded-2xl p-5">
-        <div>
-          <h2 className="font-display text-base font-bold tracking-tight">Your notes</h2>
-          <p className="text-xs text-muted-foreground">
-            Private to you. Students cannot read this — it lives in its own table with no student
-            policy.
-          </p>
-        </div>
+      <section className="tint-amber pop-card space-y-3 p-5">
+        <SectionHeading title="Your notes">
+          <span className="chip">
+            <NotebookPen className="size-3.5" aria-hidden />
+            Private to you
+          </span>
+        </SectionHeading>
+        <p className="text-xs font-medium text-muted-foreground">
+          Students cannot read this — it lives in its own table with no student policy.
+        </p>
         <textarea
           rows={5}
           value={notesDraft ?? notesQ.data?.notes ?? ""}
           onChange={(e) => setNotesDraft(e.target.value)}
           placeholder="What to push on next, what they struggle with, what parents have asked…"
-          className="premium-input w-full rounded-xl p-3 text-sm"
+          className="premium-input w-full rounded-xl p-3.5 text-sm font-medium"
         />
         <button
           type="button"
@@ -423,13 +436,13 @@ function StudentDetail() {
               onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
             })
           }
-          className="btn-premium rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
+          className="btn-solid rounded-xl px-5 py-2.5 text-sm disabled:opacity-50"
         >
           {saveNotes.isPending ? "Saving…" : "Save notes"}
         </button>
       </section>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs font-medium text-muted-foreground">
         Signed in as {viewer.profile?.display_name || viewer.user?.email}.
       </p>
     </div>
@@ -485,17 +498,22 @@ function PlanEditor({
     });
 
   return (
-    <div className="premium-card space-y-3 rounded-2xl p-4">
+    <div className={cn(subjectTint(subject), "pop-card pop-card-banded space-y-3 p-4 sm:p-5")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="font-display text-sm font-bold">{SUBJECT_LABEL[subject]}</p>
-        {planQ.data?.source === "tutor" ? <span className="chip text-xs">Your plan</span> : null}
+        <p className="font-display flex items-center gap-2 text-lg font-extrabold">
+          <CalendarDays className="size-4 text-[color:var(--tint)]" aria-hidden />
+          {SUBJECT_LABEL[subject]}
+        </p>
+        {planQ.data?.source === "tutor" ? <span className="sticker">Your plan</span> : null}
       </div>
 
       {specPoints.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No spec points loaded for this subject yet.</p>
+        <p className="surface-soft p-4 text-sm font-semibold text-muted-foreground">
+          No spec points loaded for this subject yet.
+        </p>
       ) : (
         <>
-          <div className="max-h-72 space-y-1 overflow-y-auto pr-1">
+          <div className="scroll-slim max-h-72 space-y-1.5 overflow-y-auto pr-1">
             {specPoints.map((sp) => {
               const on = current.includes(sp.id);
               const row = schedule.get(sp.id);
@@ -505,18 +523,22 @@ function PlanEditor({
                   type="button"
                   onClick={() => toggle(sp.id)}
                   className={cn(
-                    "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-colors",
-                    on ? "bg-primary/10 text-primary" : "hover:bg-card",
+                    "flex w-full items-center gap-2.5 rounded-xl border-[1.5px] px-3 py-2 text-left text-sm transition-colors",
+                    on
+                      ? "border-[color:color-mix(in_oklab,var(--tint)_40%,transparent)] bg-[color:color-mix(in_oklab,var(--tint)_10%,transparent)]"
+                      : "border-transparent hover:bg-[color:color-mix(in_oklab,var(--tint)_5%,transparent)]",
                   )}
                 >
                   {on ? (
-                    <Minus className="size-3.5 shrink-0" aria-hidden />
+                    <Minus className="size-4 shrink-0 text-[color:var(--tint)]" aria-hidden />
                   ) : (
-                    <Plus className="size-3.5 shrink-0" aria-hidden />
+                    <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                   )}
-                  <span className="min-w-0 flex-1 truncate">
-                    <span className="font-mono text-xs text-muted-foreground">{sp.code}</span>{" "}
-                    {sp.title}
+                  <span className="flex min-w-0 flex-1 items-center gap-2 truncate">
+                    <span className="numeral shrink-0 text-[10px] text-[color:var(--tint)]">
+                      {sp.code}
+                    </span>
+                    <span className="truncate font-medium">{sp.title}</span>
                   </span>
                   <MasteryPill
                     mastery={masteryFromRow(row, confidence?.get(sp.id) ?? null)}
@@ -527,8 +549,8 @@ function PlanEditor({
             })}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border/70 pt-3">
-            <p className="text-xs text-muted-foreground">{current.length} points selected</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t-2 border-dashed border-[color:color-mix(in_oklab,var(--foreground)_10%,transparent)] pt-3">
+            <p className="chip">{current.length} points selected</p>
             <button
               type="button"
               disabled={override.isPending || !level}
@@ -563,7 +585,7 @@ function PlanEditor({
                   },
                 )
               }
-              className="btn-premium rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
+              className="btn-hero rounded-xl px-5 py-2.5 text-sm disabled:opacity-50"
             >
               {override.isPending ? "Saving…" : "Save this week's plan"}
             </button>

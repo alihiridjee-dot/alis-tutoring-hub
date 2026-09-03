@@ -40,8 +40,8 @@ export function FocusKey() {
             className="inline-flex cursor-help items-center gap-1.5"
             title={tone.meaning}
           >
-            <span className={cn("size-3.5 rounded-sm border border-l-[3px]", tone.swatch)} />
-            {tone.label}
+            <span className={cn("size-3.5 rounded border border-l-4", tone.swatch)} />
+            <span className="font-semibold">{tone.label}</span>
           </span>
         );
       })}
@@ -73,7 +73,7 @@ export function FocusedTopicsLabel({ className }: { className?: string }) {
         <HelpCircle className="size-3 opacity-60" aria-hidden />
         <span
           role="tooltip"
-          className="pointer-events-none absolute right-0 top-full z-20 mt-1.5 w-64 rounded-lg border border-border bg-popover p-2.5 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-muted-foreground opacity-0 shadow-lg transition-opacity group-hover/help:opacity-100 group-focus/help:opacity-100"
+          className="pop-card pointer-events-none absolute right-0 top-full z-20 mt-2 w-64 p-3 text-[11px] font-normal normal-case leading-relaxed tracking-normal text-muted-foreground opacity-0 transition-opacity group-hover/help:opacity-100 group-focus/help:opacity-100"
         >
           {FOCUSED_TOPICS_BLURB}
         </span>
@@ -111,13 +111,13 @@ export function FocusTopicRow({
         aria-expanded={hasDetail ? open : undefined}
         title={toneWhy(band)}
         className={cn(
-          "flex w-full items-center gap-2 rounded-lg border-l-[3px] px-2.5 py-1.5 text-left transition-colors",
+          "flex w-full items-center gap-2 rounded-xl border border-l-4 px-2.5 py-2 text-left transition-colors",
           tone.row,
           !hasDetail && "cursor-default",
         )}
       >
         <Icon className={cn("size-3.5 shrink-0", tone.icons)} aria-hidden />
-        <span className="min-w-0 flex-1 truncate text-[13px]">{band.title}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold">{band.title}</span>
         {hasDetail ? (
           <ChevronDown
             className={cn(

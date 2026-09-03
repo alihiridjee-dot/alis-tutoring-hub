@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { ConfidenceBoard } from "@/components/app/ConfidenceBoard";
 import { BANDS, useBoardState } from "@/lib/bands";
 import { EmptyState, ErrorNote, PageHeader, Spinner } from "@/components/app/Shared";
+import { Mascot, Sparkles } from "@/components/app/Doodles";
 import { useEnrolments, useViewer } from "@/lib/session";
 import { deferSort } from "@/lib/sort-deferral";
 import {
@@ -91,6 +92,7 @@ function SortPage() {
       <div className="space-y-6">
         <PageHeader eyebrow="First things first" title="Let's sort your topics" />
         <EmptyState
+          mascot="books"
           title={
             noCourse ? "Your course isn't set up yet" : "The curriculum hasn't been loaded yet"
           }
@@ -106,7 +108,7 @@ function SortPage() {
             deferSort();
             void navigate({ to: "/dashboard", replace: true });
           }}
-          className="btn-soft rounded-xl px-4 py-2 text-sm"
+          className="btn-soft rounded-xl px-5 py-2.5 text-sm"
         >
           Continue to my dashboard
         </button>
@@ -118,14 +120,28 @@ function SortPage() {
     <div className="space-y-6">
       <PageHeader eyebrow="First things first" title="How well do you know each topic?" />
 
-      <div className="premium-card rounded-2xl p-5">
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          Everything starts in the <strong>Not covered yet</strong> tray. Drag each topic you have
-          already met into the column that matches how you feel about it right now — or open a card
-          and use the buttons. Be honest: a topic you mark <strong>Confident</strong> comes back
-          round much less often, so over-rating it just means you see it less.
+      {/* The one screen every student is forced through, so it gets the warmest
+          treatment in the app: a character, a sticker, and the rules stated once
+          in plain words before the board appears. */}
+      <div className="banner-strip p-5 sm:p-6">
+        {/* Mascot and sticker share a row; the copy runs full width underneath.
+            Side-by-side, the paragraph column on a phone was ~40 characters wide
+            and the sticker wrapped to two lines. */}
+        <div className="flex items-center gap-4">
+          <Mascot name="cell" mood="wink" size={76} />
+          <span className="sticker stamp-in">
+            <Sparkles className="size-3.5 text-[color:var(--pop-ink)]" />
+            Takes about five minutes
+          </span>
+        </div>
+        <p className="mt-4 text-sm font-medium leading-relaxed">
+          Everything starts in the <strong className="font-extrabold">Not covered yet</strong> tray.
+          Drag each topic you have already met into the column that matches how you feel about it
+          right now — or open a card and use the buttons. Be honest: a topic you mark{" "}
+          <strong className="font-extrabold">Confident</strong> comes back round much less often, so
+          over-rating it just means you see it less.
         </p>
-        <p className="mt-3 text-xs text-muted-foreground">
+        <p className="mt-2.5 text-xs font-medium text-muted-foreground">
           You can change any of this later, topic by topic or point by point, on your plan.
         </p>
       </div>
@@ -142,15 +158,27 @@ function SortPage() {
         mode="seed"
       />
 
-      <div className="premium-card sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl p-4">
-        <p className="text-sm text-muted-foreground">
-          {placed} of {topics.length} topics sorted.
-        </p>
+      {/* Sits above the phone nav bar, not under it. */}
+      <div className="pop-card pop-card-hero sticky bottom-24 flex flex-wrap items-center justify-between gap-3 p-4 lg:bottom-4">
+        <div className="flex min-w-[12rem] flex-1 items-center gap-3">
+          <span className="numeral text-2xl text-[color:var(--tint)]">
+            {placed}/{topics.length}
+          </span>
+          <div className="min-w-[6rem] flex-1">
+            <p className="text-xs font-bold text-muted-foreground">topics sorted</p>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-[color:color-mix(in_oklab,var(--foreground)_8%,transparent)]">
+              <div
+                className="h-full rounded-full bg-[color:var(--tint)] transition-[width] duration-500"
+                style={{ width: `${topics.length ? (placed / topics.length) * 100 : 0}%` }}
+              />
+            </div>
+          </div>
+        </div>
         <button
           type="button"
           onClick={onSubmit}
           disabled={commit.isPending}
-          className="btn-premium rounded-xl px-5 py-2.5 text-sm font-semibold disabled:opacity-60"
+          className="btn-hero rounded-xl px-6 py-3 text-sm disabled:opacity-60"
         >
           {commit.isPending ? "Setting up your plan…" : "Save and build my plan"}
         </button>

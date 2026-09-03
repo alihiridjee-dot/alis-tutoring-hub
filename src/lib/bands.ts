@@ -22,6 +22,10 @@ export const BANDS = [
     hint: "We haven't done this",
     accent: "text-muted-foreground",
     dot: "bg-muted-foreground/50",
+    // The design system's `--tint`, so a card, column or chip in this band is
+    // coloured by one class on a wrapper rather than a bag of per-element ones.
+    tint: "tint-slate",
+    emoji: "○",
   },
   {
     id: "shaky",
@@ -30,6 +34,8 @@ export const BANDS = [
     hint: "Covered it, don't trust it",
     accent: "text-rose-700 dark:text-rose-300",
     dot: "bg-rose-500",
+    tint: "tint-rose",
+    emoji: "◔",
   },
   {
     id: "ok",
@@ -38,6 +44,8 @@ export const BANDS = [
     hint: "Mostly fine",
     accent: "text-amber-700 dark:text-amber-300",
     dot: "bg-amber-500",
+    tint: "tint-amber",
+    emoji: "◑",
   },
   {
     id: "strong",
@@ -46,6 +54,8 @@ export const BANDS = [
     hint: "Could answer on this now",
     accent: "text-emerald-700 dark:text-emerald-300",
     dot: "bg-emerald-500",
+    tint: "tint-emerald",
+    emoji: "●",
   },
 ] as const;
 

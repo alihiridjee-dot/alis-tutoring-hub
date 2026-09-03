@@ -18,6 +18,7 @@ import { AnimatePresence, motion, useMotionValue, useTransform } from "motion/re
 import { Check, Loader2, Undo2, X } from "lucide-react";
 
 import { BANDS, COLUMNS, bandById, type BandId } from "@/lib/bands";
+import { Confetti, Mascot } from "@/components/app/Doodles";
 import type { SpecPoint } from "@/lib/study";
 import { cn } from "@/lib/utils";
 
@@ -124,19 +125,15 @@ export function SpecPointSwipeModal({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 24, scale: 0.98 }}
         transition={{ type: "spring", stiffness: 320, damping: 30 }}
-        className="premium-card relative flex w-full flex-col rounded-t-2xl shadow-2xl sm:max-w-md sm:rounded-2xl"
+        className="pop-card pop-card-hero relative flex w-full flex-col rounded-t-2xl sm:max-w-lg sm:rounded-2xl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-border p-5">
+        <div className="flex items-start justify-between gap-3 border-b-2 border-dashed border-[color:color-mix(in_oklab,var(--foreground)_10%,transparent)] p-5">
           <div className="min-w-0">
-            {topicCode ? (
-              <div className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-                {topicCode}
-              </div>
-            ) : null}
-            <h2 className="font-display truncate text-lg font-semibold tracking-tight">
+            {topicCode ? <p className="eyebrow">{topicCode}</p> : null}
+            <h2 className="font-display mt-1.5 text-xl font-extrabold leading-tight">
               {topicTitle}
             </h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs font-medium text-muted-foreground">
               {canRate
                 ? "Rate each point: needs work, getting there, or confident."
                 : `${total} spec point${total === 1 ? "" : "s"} in this topic.`}
@@ -145,14 +142,13 @@ export function SpecPointSwipeModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg hover:bg-muted"
+            className="btn-ghost flex size-9 shrink-0 items-center justify-center rounded-xl"
             aria-label="Close"
           >
             <X className="size-4" aria-hidden />
           </button>
         </div>
 
-        {/* The one thing Anglian's modal has no equivalent of. Dragging is the
         {/* The one thing Anglian's modal has no equivalent of. Dragging is the
             only way to move a topic there, and drag-and-drop cannot be done with
             a keyboard — on a screen every student is forced through at first
@@ -163,8 +159,16 @@ export function SpecPointSwipeModal({
             doing completely different things. I mis-clicked it myself within a
             minute of building it. One labelled control cannot be confused with
             the deck's, and it takes a third of the width. */}
-        <div className="flex items-center gap-2 border-b border-border px-5 py-3">
-          <label htmlFor="topic-band" className="text-[11px] font-semibold text-muted-foreground">
+        <div
+          className={cn(
+            bandById(band).tint,
+            "flex items-center gap-2.5 border-b-2 border-dashed border-[color:color-mix(in_oklab,var(--foreground)_10%,transparent)] px-5 py-3",
+          )}
+        >
+          <label
+            htmlFor="topic-band"
+            className="font-display text-[11px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground"
+          >
             This whole topic
           </label>
           <select
@@ -172,7 +176,7 @@ export function SpecPointSwipeModal({
             value={band}
             disabled={busy}
             onChange={(e) => onMove(e.target.value as BandId)}
-            className="premium-input h-8 rounded-lg px-2 text-xs"
+            className="premium-input h-9 rounded-lg px-2.5 text-xs font-bold"
           >
             {BANDS.map((b) => (
               <option key={b.id} value={b.id}>
@@ -188,10 +192,16 @@ export function SpecPointSwipeModal({
               No specification points for this topic yet.
             </p>
           ) : !canRate ? (
-            <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+            <ul className="scroll-slim max-h-64 space-y-2 overflow-y-auto pr-1">
               {points.map((p) => (
-                <li key={p.id} className="text-xs leading-relaxed">
-                  <span className="font-mono text-muted-foreground">{p.code}</span> {p.title}
+                <li
+                  key={p.id}
+                  className="surface-soft flex items-start gap-2.5 px-3 py-2 text-xs leading-relaxed"
+                >
+                  <span className="numeral shrink-0 text-[10px] text-[color:var(--tint)]">
+                    {p.code}
+                  </span>
+                  <span className="font-medium">{p.title}</span>
                 </li>
               ))}
             </ul>
@@ -206,19 +216,22 @@ export function SpecPointSwipeModal({
                   <p className="mt-3 text-sm text-muted-foreground">Saving your ratings…</p>
                 </>
               ) : (
-                <>
-                  <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    <Check className="size-6" aria-hidden />
-                  </div>
-                  <p className="mt-3 text-sm font-medium">All done — nice work.</p>
+                <div className="relative">
+                  <Confetti />
+                  <Mascot name="star" mood="proud" size={96} idle={false} className="mx-auto cheer" />
+                  <span className="sticker stamp-in mt-3 inline-flex">
+                    <Check className="size-3.5" aria-hidden />
+                    Topic rated
+                  </span>
+                  <p className="mt-3 text-sm font-semibold">All done — nice work.</p>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="btn-soft mt-4 rounded-xl px-4 py-2 text-xs"
+                    className="btn-soft mt-5 rounded-xl px-5 py-2.5 text-xs"
                   >
                     Close
                   </button>
-                </>
+                </div>
               )}
             </div>
           ) : (
@@ -232,22 +245,44 @@ export function SpecPointSwipeModal({
         </div>
 
         {canRate && !done ? (
-          <div className="flex items-center justify-between gap-3 border-t border-border p-4">
-            <button
-              type="button"
-              onClick={undo}
-              disabled={index === 0}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-muted disabled:opacity-40"
-            >
-              <Undo2 className="size-4" aria-hidden /> Back
-            </button>
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {Math.min(index + 1, total)} of {total}
-            </span>
-            <div className="flex items-center gap-1.5">
-              {DECK_BANDS.map((id) => (
-                <RatingButton key={id} band={id} onClick={() => choose(id)} />
-              ))}
+          <div className="space-y-3 border-t-2 border-dashed border-[color:color-mix(in_oklab,var(--foreground)_10%,transparent)] p-4">
+            {/* A segmented bar, one cell per point, so the deck shows how much is
+                left without a second line of text saying so. */}
+            <div className="flex items-center gap-3">
+              <span
+                aria-hidden
+                className="flex h-1.5 flex-1 gap-0.5 overflow-hidden rounded-full"
+              >
+                {points.map((p, i) => (
+                  <span
+                    key={p.id}
+                    className={cn(
+                      "h-full flex-1 rounded-full transition-colors",
+                      i < index
+                        ? "bg-[color:var(--primary)]"
+                        : "bg-[color:color-mix(in_oklab,var(--foreground)_10%,transparent)]",
+                    )}
+                  />
+                ))}
+              </span>
+              <span className="numeral shrink-0 text-xs text-muted-foreground">
+                {Math.min(index + 1, total)} / {total}
+              </span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={undo}
+                disabled={index === 0}
+                className="btn-ghost inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm disabled:opacity-40"
+              >
+                <Undo2 className="size-4" aria-hidden /> Back
+              </button>
+              <div className="flex items-center gap-2">
+                {DECK_BANDS.map((id) => (
+                  <RatingButton key={id} band={id} onClick={() => choose(id)} />
+                ))}
+              </div>
             </div>
           </div>
         ) : null}
@@ -259,22 +294,17 @@ export function SpecPointSwipeModal({
 /** One choice button, coloured from its band. */
 function RatingButton({ band, onClick }: { band: BandId; onClick: () => void }) {
   const meta = bandById(band);
-  const tone =
-    band === "strong"
-      ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
-      : band === "ok"
-        ? "border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-        : "border-rose-500/40 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10";
   return (
     <button
       type="button"
       onClick={onClick}
+      title={meta.hint}
       className={cn(
-        "inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-[13px] font-semibold",
-        tone,
+        meta.tint,
+        "btn-soft inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-[13px]",
       )}
     >
-      <span className={cn("size-2 rounded-full", meta.dot)} aria-hidden />
+      <span className="size-2.5 rounded-full bg-[color:var(--tint)]" aria-hidden />
       {meta.label}
     </button>
   );
@@ -305,11 +335,11 @@ function SwipeDeck({
   const next = points[index + 1];
 
   return (
-    <div className="relative h-56">
+    <div className="relative h-60">
       {next ? (
         <div
           aria-hidden
-          className="premium-card absolute inset-0 origin-top scale-95 translate-y-2.5 rounded-2xl opacity-60"
+          className="pop-card pop-card-flat absolute inset-0 origin-top translate-y-3 scale-95 opacity-70"
         />
       ) : null}
       <AnimatePresence initial={false}>
@@ -350,14 +380,14 @@ function SwipeCard({
       }}
       whileTap={{ cursor: "grabbing" }}
     >
-      <div className="premium-card flex h-full w-full cursor-grab select-none flex-col rounded-2xl p-5 shadow-md active:cursor-grabbing">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+      <div className="pop-card pop-card-hero flex h-full w-full cursor-grab select-none flex-col p-5 active:cursor-grabbing">
+        <span className="numeral w-fit rounded-md bg-[color:color-mix(in_oklab,var(--tint)_12%,transparent)] px-2 py-0.5 text-[11px] text-[color:var(--tint)]">
           {point.code}
         </span>
-        <p className="font-display mt-2 flex-1 overflow-y-auto text-base font-semibold leading-snug">
+        <p className="font-display scroll-slim mt-3 flex-1 overflow-y-auto text-lg font-extrabold leading-snug">
           {point.title}
         </p>
-        <p className="mt-2 shrink-0 text-[11px] text-muted-foreground">
+        <p className="mt-3 shrink-0 text-[11px] font-medium text-muted-foreground">
           {previous != null
             ? `You said ${bandById(bandOfConfidence(previous)).label} last time. `
             : ""}
@@ -365,15 +395,17 @@ function SwipeCard({
         </p>
       </div>
 
+      {/* The swipe stamps. Same sticker vocabulary as a milestone badge, because
+          that is exactly what committing a card is. */}
       <motion.div
         style={{ opacity: strongOpacity }}
-        className="absolute right-5 top-5 rotate-12 rounded-lg border-2 border-emerald-500 px-2.5 py-1 text-sm font-bold uppercase text-emerald-500"
+        className="tint-emerald sticker sticker-alt absolute right-5 top-5 rotate-12"
       >
         {COLUMNS[0].label}
       </motion.div>
       <motion.div
         style={{ opacity: shakyOpacity }}
-        className="absolute left-5 top-5 -rotate-12 rounded-lg border-2 border-rose-500 px-2.5 py-1 text-sm font-bold uppercase text-rose-500"
+        className="tint-rose sticker sticker-alt absolute left-5 top-5 -rotate-12"
       >
         {COLUMNS[2].label}
       </motion.div>

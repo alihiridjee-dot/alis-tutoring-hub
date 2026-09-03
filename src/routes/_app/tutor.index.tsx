@@ -7,9 +7,12 @@
  */
 import { Link, createFileRoute } from "@tanstack/react-router";
 
+import { Users } from "lucide-react";
+
 import { EmptyState, ErrorNote, PageHeader, Spinner } from "@/components/app/Shared";
 import { LEVEL_LABEL, SOURCE_LABEL } from "@/lib/session";
 import { useStudents } from "@/lib/tutor";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/tutor/")({ component: TutorHome });
 
@@ -23,10 +26,16 @@ function TutorHome() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Tutor" title="Your students" />
+      <PageHeader
+        eyebrow="Tutor"
+        title="Your students"
+        icon={Users}
+        lede="Everyone on your books, and whether anything is blocking their plan."
+      />
 
       {students.length === 0 ? (
         <EmptyState
+          mascot="books"
           title="No students yet"
           body="Create an account in the Supabase dashboard and it appears here. New accounts default to the student role."
         />
@@ -39,35 +48,44 @@ function TutorHome() {
                 <Link
                   to="/tutor/students/$studentId"
                   params={{ studentId: s.id }}
-                  className="premium-card-interactive block rounded-2xl p-4"
+                  // A student who cannot be given a plan gets an amber card, not
+                  // an amber word inside a neutral one — the whole point of this
+                  // page is spotting them without reading every row.
+                  className={cn(
+                    needsSetup ? "tint-amber" : "tint-primary",
+                    "pop-card pop-card-interactive block h-full p-4",
+                  )}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold">
+                  <div className="flex items-start gap-3">
+                    <span className="icon-tile font-display size-10 shrink-0 text-sm font-extrabold">
+                      {(s.display_name || s.email || "?").slice(0, 2).toUpperCase()}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-display truncate text-base font-extrabold">
                         {s.display_name || s.email || "Unnamed student"}
                       </p>
-                      <p className="truncate text-xs text-muted-foreground">{s.email}</p>
+                      <p className="truncate text-xs font-medium text-muted-foreground">
+                        {s.email}
+                      </p>
                     </div>
-                    <span className="chip shrink-0 text-xs">{SOURCE_LABEL[s.source]}</span>
+                    <span className="chip shrink-0">{SOURCE_LABEL[s.source]}</span>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap gap-1.5">
+                  <div className="mt-4 flex flex-wrap gap-2">
                     {s.level ? (
-                      <span className="chip text-xs">{LEVEL_LABEL[s.level]}</span>
+                      <span className="chip">{LEVEL_LABEL[s.level]}</span>
                     ) : (
-                      <span className="chip bg-amber-100 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-                        Needs setup
-                      </span>
+                      <span className="chip chip-solid">Needs setup</span>
                     )}
                     {s.confidence_seeded_at ? (
-                      <span className="chip text-xs">Sorted</span>
+                      <span className="tint-emerald chip">Sorted</span>
                     ) : (
-                      <span className="chip text-xs text-muted-foreground">Not sorted yet</span>
+                      <span className="tint-slate chip">Not sorted yet</span>
                     )}
                   </div>
 
                   {needsSetup ? (
-                    <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+                    <p className="mt-3 text-xs font-semibold text-[color:var(--tint)]">
                       Set their level and subjects before they log in.
                     </p>
                   ) : null}

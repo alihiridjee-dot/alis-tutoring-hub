@@ -50,7 +50,11 @@ function PlannerPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Your plan" title="The year ahead" />
+      <PageHeader
+        eyebrow="Your plan"
+        title="The year ahead"
+        lede="Your whole course, paced to the exam — and what to do about it this week."
+      />
       <StudentPlanner
         tab={tab}
         onTabChange={(next) =>

@@ -4,10 +4,11 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { Send } from "lucide-react";
+import { MessageSquare, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { EmptyState, ErrorNote, PageHeader, Spinner } from "@/components/app/Shared";
+import { Mascot } from "@/components/app/Doodles";
 import { useViewer } from "@/lib/session";
 import { useMessages, useSendMessage, useStartThread, useThreads } from "@/lib/chat";
 import { cn } from "@/lib/utils";
@@ -38,11 +39,22 @@ function MessagesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Messages" title={viewer.isTutor ? "Student questions" : "Ask Ali"} />
+      <PageHeader
+        eyebrow="Messages"
+        title={viewer.isTutor ? "Student questions" : "Ask Ali"}
+        icon={MessageSquare}
+        lede={
+          viewer.isTutor
+            ? "Every thread your students have started, newest activity first."
+            : "Stuck on something? Ask here and Ali picks it up between lessons."
+        }
+      />
 
       {threads.length === 0 ? (
         <div className="space-y-4">
           <EmptyState
+            mascot="flask"
+            mood="happy"
             title="No messages yet"
             body={
               viewer.isTutor
@@ -67,38 +79,54 @@ function MessagesPage() {
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-[18rem_1fr]">
-          <ul className="space-y-1.5">
-            {threads.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => setActiveId(t.id)}
-                  className={cn(
-                    "w-full rounded-xl px-3 py-2.5 text-left transition-colors",
-                    active?.id === t.id ? "bg-card font-semibold" : "hover:bg-card/60",
-                  )}
-                >
-                  <p className="truncate text-sm">
-                    {viewer.isTutor ? t.studentName : t.specPointLabel || "General"}
-                  </p>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {t.lastMessage ?? "No messages"}
-                  </p>
-                </button>
-              </li>
-            ))}
+          <ul className="scroll-none -mx-1 flex gap-2 overflow-x-auto px-1 pb-1 md:scroll-slim md:mx-0 md:max-h-[28rem] md:flex-col md:overflow-y-auto md:px-0">
+            {threads.map((t) => {
+              const on = active?.id === t.id;
+              return (
+                <li key={t.id} className="w-56 shrink-0 md:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setActiveId(t.id)}
+                    className={cn(
+                      "w-full px-3.5 py-3 text-left",
+                      on ? "pop-card" : "pop-card pop-card-flat opacity-70 hover:opacity-100",
+                    )}
+                  >
+                    <p className="font-display truncate text-sm font-extrabold">
+                      {viewer.isTutor ? t.studentName : t.specPointLabel || "General"}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs font-medium text-muted-foreground">
+                      {t.lastMessage ?? "No messages"}
+                    </p>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
 
-          <div className="premium-card flex min-h-[24rem] flex-col rounded-2xl">
-            <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-4">
+          <div className="pop-card flex min-h-[26rem] flex-col">
+            <div
+              ref={scrollRef}
+              className="scroll-slim flex-1 space-y-2.5 overflow-y-auto p-4 sm:p-5"
+            >
+              {(messagesQ.data ?? []).length === 0 ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3 py-10 text-center">
+                  <Mascot name="flask" mood="happy" size={72} />
+                  <p className="text-sm font-semibold text-muted-foreground">
+                    Nothing here yet — say hello.
+                  </p>
+                </div>
+              ) : null}
               {(messagesQ.data ?? []).map((m) => {
                 const mine = m.sender_id === viewer.user?.id;
                 return (
                   <div
                     key={m.id}
                     className={cn(
-                      "max-w-[80%] rounded-2xl px-3.5 py-2 text-sm",
-                      mine ? "ml-auto bg-primary text-primary-foreground" : "surface-soft mr-auto",
+                      "max-w-[82%] border-[1.5px] px-4 py-2.5 text-sm font-medium leading-relaxed",
+                      mine
+                        ? "ml-auto rounded-2xl rounded-br-md border-[color:color-mix(in_oklab,var(--primary)_60%,black)] bg-[color:var(--primary)] text-white"
+                        : "mr-auto rounded-2xl rounded-bl-md border-[color:var(--edge)] bg-[color:color-mix(in_oklab,var(--tint)_6%,var(--card))]",
                     )}
                   >
                     <p className="whitespace-pre-wrap">{m.body}</p>
@@ -108,7 +136,7 @@ function MessagesPage() {
             </div>
 
             <form
-              className="flex items-center gap-2 border-t border-border/70 p-3"
+              className="flex items-center gap-2 border-t-2 border-dashed border-[color:color-mix(in_oklab,var(--foreground)_10%,transparent)] p-3"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (!draft.trim() || !active || !viewer.user) return;
@@ -126,12 +154,12 @@ function MessagesPage() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Write a message"
-                className="premium-input h-10 flex-1 rounded-xl px-3 text-sm"
+                className="premium-input h-11 flex-1 rounded-xl px-3.5 text-sm font-medium"
               />
               <button
                 type="submit"
                 disabled={send.isPending || !draft.trim()}
-                className="btn-premium rounded-xl p-2.5 disabled:opacity-50"
+                className="btn-hero rounded-xl p-3 disabled:opacity-50"
                 aria-label="Send message"
               >
                 <Send className="size-4" aria-hidden />
@@ -148,7 +176,7 @@ function NewThread({ onSend, pending }: { onSend: (body: string) => void; pendin
   const [body, setBody] = useState("");
   return (
     <form
-      className="premium-card space-y-3 rounded-2xl p-4"
+      className="pop-card space-y-3 p-4 sm:p-5"
       onSubmit={(e) => {
         e.preventDefault();
         if (!body.trim()) return;
@@ -161,12 +189,12 @@ function NewThread({ onSend, pending }: { onSend: (body: string) => void; pendin
         onChange={(e) => setBody(e.target.value)}
         rows={3}
         placeholder="What's the question?"
-        className="premium-input w-full rounded-xl p-3 text-sm"
+        className="premium-input w-full rounded-xl p-3.5 text-sm font-medium"
       />
       <button
         type="submit"
         disabled={pending || !body.trim()}
-        className="btn-premium rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60"
+        className="btn-hero rounded-xl px-5 py-2.5 text-sm disabled:opacity-60"
       >
         {pending ? "Sending…" : "Send to Ali"}
       </button>

@@ -6,7 +6,15 @@
  */
 import { Link, createFileRoute } from "@tanstack/react-router";
 
-import { EmptyState, ErrorNote, PageHeader, Spinner } from "@/components/app/Shared";
+import { NotebookPen } from "lucide-react";
+
+import {
+  EmptyState,
+  ErrorNote,
+  PageHeader,
+  SectionHeading,
+  Spinner,
+} from "@/components/app/Shared";
 import { useViewer } from "@/lib/session";
 import { useAssignments, type AssignmentView } from "@/lib/homework";
 import { daysUntil, relativeDay } from "@/lib/week";
@@ -14,27 +22,26 @@ import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_app/homework/")({ component: HomeworkList });
 
-function statusOf(a: AssignmentView): { label: string; cls: string } {
+/**
+ * The status of a piece of work, as a label plus the tint that colours its whole
+ * row.
+ *
+ * `tint-*` rather than `bg-*`: the design system's `.chip` and `.pop-card` rules
+ * are unlayered CSS and beat a Tailwind background utility on the same element,
+ * so the old `bg-emerald-100` values were being silently discarded.
+ */
+function statusOf(a: AssignmentView): { label: string; tint: string } {
   if (a.status === "marked") {
     const score = a.submission?.score_pct;
     return {
       label: score == null ? "Marked" : `Marked · ${Math.round(Number(score))}%`,
-      cls: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+      tint: "tint-emerald",
     };
   }
-  if (a.status === "submitted") {
-    return {
-      label: "Waiting to be marked",
-      cls: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-200",
-    };
-  }
-  if (a.due_at && daysUntil(a.due_at) < 0) {
-    return {
-      label: "Overdue",
-      cls: "bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200",
-    };
-  }
-  return { label: "To do", cls: "bg-muted text-muted-foreground" };
+  if (a.status === "submitted") return { label: "Waiting to be marked", tint: "tint-primary" };
+  if (a.due_at && daysUntil(a.due_at) < 0) return { label: "Overdue", tint: "tint-rose" };
+  if (a.due_at && daysUntil(a.due_at) <= 2) return { label: "Due soon", tint: "tint-amber" };
+  return { label: "To do", tint: "tint-slate" };
 }
 
 function HomeworkList() {
@@ -50,30 +57,41 @@ function HomeworkList() {
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Homework" title="Your work" />
+      <PageHeader
+        eyebrow="Homework"
+        title="Your work"
+        icon={NotebookPen}
+        lede="Everything Ali has set you, and everything he's marked."
+      />
 
       {assignments.length === 0 ? (
         <EmptyState
-          title="No homework set"
+          mascot="books"
+          mood="sleepy"
+          title="Nothing set — enjoy it while it lasts"
           body="When Ali sets you a task it appears here, with its due date and anywhere you need to type an answer."
         />
       ) : null}
 
       {open.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="font-display text-lg font-bold tracking-tight">To do</h2>
-          {open.map((a) => (
-            <Row key={a.id} assignment={a} />
-          ))}
+        <section className="space-y-3">
+          <SectionHeading title="To do" hint={`${open.length} open`} />
+          <div className="space-y-3">
+            {open.map((a) => (
+              <Row key={a.id} assignment={a} />
+            ))}
+          </div>
         </section>
       ) : null}
 
       {done.length > 0 ? (
-        <section className="space-y-2">
-          <h2 className="font-display text-lg font-bold tracking-tight">Marked</h2>
-          {done.map((a) => (
-            <Row key={a.id} assignment={a} />
-          ))}
+        <section className="space-y-3">
+          <SectionHeading title="Marked" hint={`${done.length} done`} />
+          <div className="space-y-3">
+            {done.map((a) => (
+              <Row key={a.id} assignment={a} />
+            ))}
+          </div>
         </section>
       ) : null}
     </div>
@@ -86,15 +104,20 @@ function Row({ assignment }: { assignment: AssignmentView }) {
     <Link
       to="/homework/$assignmentId"
       params={{ assignmentId: assignment.id }}
-      className="premium-card-interactive flex items-center justify-between gap-3 rounded-2xl p-4"
+      className={cn(status.tint, "pop-card pop-card-interactive flex items-center gap-3.5 p-4")}
     >
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium">{assignment.resource?.title ?? "Homework"}</p>
-        <p className="text-xs text-muted-foreground">
+      <span className="icon-tile size-11 shrink-0">
+        <NotebookPen className="size-5" aria-hidden />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="font-display truncate text-base font-extrabold">
+          {assignment.resource?.title ?? "Homework"}
+        </p>
+        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
           {assignment.due_at ? `Due ${relativeDay(assignment.due_at)}` : "No due date"}
         </p>
       </div>
-      <span className={cn("chip shrink-0 text-xs", status.cls)}>{status.label}</span>
+      <span className="chip shrink-0">{status.label}</span>
     </Link>
   );
 }

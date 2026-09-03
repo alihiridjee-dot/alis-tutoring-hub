@@ -46,6 +46,7 @@ import {
   weekFromRoadmap,
 } from "@/lib/programme";
 import { SUBJECT_LABEL, useViewer, type Enrolment } from "@/lib/session";
+import { subjectIcon, subjectTint } from "@/lib/subject";
 import { useSaveWeekNote, useWeekNotes, type NoteAuthor } from "@/lib/week-notes";
 import {
   groupByTopic,
@@ -121,47 +122,50 @@ export function StudentPlanner({
   const specPoints = data.specPoints.filter((sp) => topicIds.has(sp.topic_id));
 
   return (
-    <div className="premium-card overflow-hidden rounded-2xl">
-      <div className="border-b border-border/70 px-4 pt-4 sm:px-5">
+    // The whole planner is tinted by the subject in view, so switching from
+    // Biology to Chemistry recolours every card, meter and chip inside it
+    // without a single conditional class further down.
+    <div className={cn(subjectTint(active.subject), "pop-card pop-card-hero overflow-hidden")}>
+      <div className="border-b-2 border-dashed border-[color:color-mix(in_oklab,var(--foreground)_10%,transparent)] px-4 py-4 sm:px-5">
         {enrolments.length > 1 ? (
           <div
-            className="mb-3 flex flex-wrap items-center gap-1.5"
+            className="mb-3 flex flex-wrap items-center gap-2"
             role="tablist"
             aria-label="Subject"
           >
-            {enrolments.map((e) => (
-              <button
-                key={e.id}
-                type="button"
-                role="tab"
-                aria-selected={e.subject === active.subject}
-                onClick={() => setPickedSubject(e.subject)}
-                className={cn(
-                  "h-8 rounded-full px-3.5 text-sm font-medium transition-colors",
-                  e.subject === active.subject
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {SUBJECT_LABEL[e.subject]}
-              </button>
-            ))}
+            {enrolments.map((e) => {
+              const Icon = subjectIcon(e.subject);
+              const on = e.subject === active.subject;
+              return (
+                <button
+                  key={e.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setPickedSubject(e.subject)}
+                  className={cn(
+                    subjectTint(e.subject),
+                    "inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm",
+                    on ? "btn-solid" : "btn-soft",
+                  )}
+                >
+                  {Icon ? <Icon className="size-4" aria-hidden /> : null}
+                  {SUBJECT_LABEL[e.subject]}
+                </button>
+              );
+            })}
           </div>
         ) : null}
 
-        <nav className="-mb-px flex gap-1 overflow-x-auto" aria-label="Planner sections">
+        <nav className="tab-row scroll-none max-w-full overflow-x-auto" aria-label="Planner sections">
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
               type="button"
               onClick={() => onTabChange(key)}
               aria-current={tab === key ? "page" : undefined}
-              className={cn(
-                "inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-3.5 text-sm font-medium transition-colors",
-                tab === key
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
+              data-active={tab === key}
+              className="tab-item shrink-0"
             >
               <Icon className="size-4" aria-hidden />
               {label}
@@ -317,39 +321,38 @@ function ThisWeekTab({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          Week of {formatWeek(thisWeek)} · {total} spec point{total === 1 ? "" : "s"}
-        </p>
-        {planQ.data?.source === "tutor" ? <span className="chip text-xs">Set by Ali</span> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="eyebrow">This week</p>
+          <p className="font-display mt-1 text-2xl font-extrabold">Week of {formatWeek(thisWeek)}</p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <span className="chip">
+            {total} spec point{total === 1 ? "" : "s"}
+          </span>
+          {planQ.data?.source === "tutor" ? <span className="sticker">Set by Ali</span> : null}
+        </div>
       </div>
 
       {planQ.error ? <ErrorNote error={planQ.error} /> : null}
 
       <div className="grid items-stretch gap-4 md:grid-cols-2">
         {/* Core — the curriculum, on schedule for the exam. */}
-        <section className="flex h-full flex-col rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <div className="mb-1 flex items-center gap-1.5">
+        <section className="surface-loud flex h-full flex-col p-4 sm:p-5">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
             {covered ? (
-              <>
-                <CheckCircle2
-                  className="size-3.5 text-emerald-600 dark:text-emerald-400"
-                  aria-hidden
-                />
-                <span className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-                  Core topic · covered
-                </span>
-              </>
+              <span className="tint-emerald chip">
+                <CheckCircle2 className="size-3.5" aria-hidden />
+                Core topic · covered
+              </span>
             ) : (
-              <>
-                <CircleDot className="size-3.5 text-primary" aria-hidden />
-                <span className="text-[10px] font-bold uppercase tracking-wide text-primary">
-                  Core topic
-                </span>
-              </>
+              <span className="chip chip-solid">
+                <CircleDot className="size-3.5" aria-hidden />
+                Core topic
+              </span>
             )}
             {band ? (
-              <span className="ml-auto text-[11px] text-muted-foreground">
+              <span className="ml-auto text-[11px] font-bold text-muted-foreground">
                 {formatWeek(band.startWeek)} → {formatWeek(band.endWeek)}
               </span>
             ) : null}
@@ -392,11 +395,13 @@ function ThisWeekTab({
         </section>
 
         {/* Focused — what came back round. Same anatomy, different colour. */}
-        <section className="premium-card flex h-full flex-col rounded-xl p-4">
-          <div className="mb-1 flex items-center gap-1.5">
-            <FocusedTopicsLabel className="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400" />
+        <section className="tint-rose surface-soft flex h-full flex-col p-4 sm:p-5">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="chip">
+              <FocusedTopicsLabel />
+            </span>
             {focusCount > 0 ? (
-              <span className="ml-auto text-[11px] text-muted-foreground">
+              <span className="ml-auto text-[11px] font-bold text-muted-foreground">
                 {focusCount} to revisit
               </span>
             ) : null}
@@ -425,7 +430,7 @@ function ThisWeekTab({
                     <button
                       type="button"
                       onClick={onRateTopics}
-                      className="font-semibold text-primary hover:underline"
+                      className="font-bold text-[color:var(--primary)] underline decoration-2 underline-offset-2"
                     >
                       My topics
                     </button>{" "}
@@ -444,8 +449,9 @@ function ThisWeekTab({
         <button
           type="button"
           onClick={onRateTopics}
-          className="btn-soft rounded-xl px-4 py-2 text-xs"
+          className="btn-soft inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs"
         >
+          <SlidersHorizontal className="size-3.5" aria-hidden />
           Not right? Re-rate your topics
         </button>
       ) : null}
@@ -475,23 +481,19 @@ function TopicBlock({
   children: ReactNode;
 }) {
   return (
-    <div>
-      <p className="font-display text-lg font-semibold leading-snug">{title}</p>
+    // The core lane inherits the SUBJECT's tint from the planner shell, so a
+    // Biology week is green throughout instead of green cards with blue meters
+    // inside them. Only the focus lane overrides, because "came back round" is
+    // the one thing that must not read as the subject's own colour.
+    <div className={accent === "rose" ? "tint-rose" : undefined}>
+      <p className="font-display text-xl font-extrabold leading-snug">{title}</p>
       {mastery != null ? (
         <div className="mt-3">
-          <div className="mb-1 flex items-center justify-between text-[11px]">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] font-bold">
             <span className="text-muted-foreground">{masteryLabel}</span>
-            <span className="font-semibold tabular-nums">{mastery}%</span>
+            <span className="numeral text-[color:var(--tint)]">{mastery}%</span>
           </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all",
-                accent === "rose" ? "bg-rose-500" : "bg-primary",
-              )}
-              style={{ width: `${Math.max(2, mastery)}%` }}
-            />
-          </div>
+          <Meter value={Math.max(2, mastery)} size="sm" />
         </div>
       ) : null}
       {children}
@@ -501,27 +503,28 @@ function TopicBlock({
 
 function SpecPointList({ points }: { points: PlanPointView[] }) {
   return (
-    <div className="mt-3">
-      <div className="mb-1.5 flex items-center gap-1.5">
-        <h3 className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+    <div className="mt-4">
+      <div className="mb-2 flex items-center gap-2">
+        <h3 className="font-display text-[11px] font-extrabold uppercase tracking-[0.12em] text-muted-foreground">
           This week&apos;s spec points
         </h3>
-        <span className="text-[11px] tabular-nums text-muted-foreground/70">{points.length}</span>
+        <span className="numeral text-[11px] text-muted-foreground/70">{points.length}</span>
       </div>
-      <div className="space-y-1.5">
-        {points.map((p) => (
+      <div className="space-y-2">
+        {points.map((p, i) => (
           <div
             key={p.id}
-            className="flex items-center gap-2 rounded-lg border border-border bg-card/60 px-2.5 py-2"
+            className="pop-in flex items-start gap-2.5 rounded-xl border border-[color:color-mix(in_oklab,var(--tint)_18%,var(--edge))] bg-card px-3 py-2.5"
+            style={{ "--pop-delay": `${i * 45}ms` } as React.CSSProperties}
           >
-            <p className="min-w-0 flex-1 text-sm">
-              <span className="mr-1.5 text-[11px] font-semibold text-muted-foreground">
-                {p.code}
-              </span>
+            <span className="numeral mt-0.5 shrink-0 rounded-md bg-[color:color-mix(in_oklab,var(--tint)_12%,transparent)] px-1.5 py-0.5 text-[10px] text-[color:var(--tint)]">
+              {p.code}
+            </span>
+            <p className="min-w-0 flex-1 text-sm font-medium leading-snug">
               {p.title}
               {p.carried ? (
                 <span
-                  className="ml-1.5 inline-flex h-5 items-center gap-1 rounded-md bg-muted px-1.5 align-middle text-[10px] font-medium text-muted-foreground"
+                  className="ml-1.5 inline-flex h-5 items-center gap-1 rounded-md bg-muted px-1.5 align-middle text-[10px] font-bold text-muted-foreground"
                   title="Carried over from last week — it stays in this lane"
                 >
                   <RotateCcw className="size-2.5" aria-hidden /> Carried
@@ -627,11 +630,13 @@ function FullPlanTab({
     <div className="space-y-3">
       {/* The exam date leads, because everything below is derived from it: each
           week is the course divided across the time between now and this day. */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/25 bg-primary/5 px-3.5 py-3">
-        <span className="inline-flex items-center gap-2">
-          <CalendarClock className="size-4 shrink-0 text-primary" aria-hidden />
+      <div className="banner-strip flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+        <span className="inline-flex items-center gap-3">
+          <span className="icon-tile size-10 shrink-0">
+            <CalendarClock className="size-4" aria-hidden />
+          </span>
           <span>
-            <span className="block text-[13px] font-semibold leading-tight">
+            <span className="font-display block text-[15px] font-extrabold leading-tight">
               Exams from{" "}
               {new Date(enrolment.exam_date).toLocaleDateString("en-GB", {
                 day: "numeric",
@@ -639,13 +644,13 @@ function FullPlanTab({
                 year: "numeric",
               })}
             </span>
-            <span className="block text-[11px] text-muted-foreground">
+            <span className="mt-0.5 block text-[11px] font-medium text-muted-foreground">
               Every week below is paced from this date.
             </span>
           </span>
         </span>
-        <span className="text-[12px] text-muted-foreground">
-          <span className="font-semibold tabular-nums text-foreground">
+        <span className="chip">
+          <span className="numeral">
             {covered} of {topics.length}
           </span>{" "}
           topics covered
@@ -653,11 +658,12 @@ function FullPlanTab({
       </div>
 
       {roadmap.overrun > 0 ? (
-        <div className="rounded-2xl border border-rose-300/70 bg-rose-50 p-4 text-sm dark:border-rose-900/70 dark:bg-rose-950/40">
-          <p className="font-semibold text-rose-900 dark:text-rose-200">
+        <div className="tint-rose pop-card pop-card-flat p-4 text-sm">
+          <p className="font-display flex items-center gap-2 text-base font-extrabold text-[color:var(--tint)]">
+            <AlertTriangle className="size-4" aria-hidden />
             This course doesn&apos;t fit before the exam
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-rose-900/90 dark:text-rose-200/90">
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
             {topics.length} topics need at least a week each, which is {roadmap.overrun} week
             {roadmap.overrun === 1 ? "" : "s"} more than there is between now and the revision
             run-up. The later topics are scheduled past that point. Ali will need to double up some
@@ -667,12 +673,12 @@ function FullPlanTab({
       ) : null}
 
       {roadmap.needsAck ? (
-        <div className="rounded-2xl border border-amber-300/70 bg-amber-50 p-4 dark:border-amber-800/70 dark:bg-amber-950/40">
-          <p className="flex items-center gap-2 text-sm font-semibold text-amber-900 dark:text-amber-200">
+        <div className="tint-amber pop-card pop-card-flat p-4">
+          <p className="font-display flex items-center gap-2 text-base font-extrabold text-[color:var(--tint)]">
             <AlertTriangle className="size-4" aria-hidden />
             Your plan has shifted
           </p>
-          <ul className="mt-2 space-y-0.5 text-xs text-amber-900/90 dark:text-amber-200/90">
+          <ul className="mt-2 space-y-0.5 text-xs font-medium leading-relaxed text-muted-foreground">
             {roadmap.diff.moved.slice(0, 4).map((m) => (
               <li key={m.title}>
                 {m.title} — now starts {formatWeek(m.to)} (was {formatWeek(m.from)})
@@ -691,7 +697,9 @@ function FullPlanTab({
                 onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
               })
             }
-            className="btn-premium mt-3 rounded-xl px-4 py-2 text-xs font-semibold disabled:opacity-60"
+            // Primary blue, not the card's amber: white on amber does not carry
+            // enough contrast, and the action is the app's, not the warning's.
+            className="tint-primary btn-solid mt-3 rounded-xl px-4 py-2.5 text-xs disabled:opacity-60"
           >
             {acknowledge.isPending ? "Updating…" : "Got it, update my plan"}
           </button>
@@ -706,11 +714,11 @@ function FullPlanTab({
         <FocusKey />
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border">
+      <div className="overflow-hidden rounded-2xl border-[1.5px] border-[color:color-mix(in_oklab,var(--tint)_22%,var(--edge))]">
         <div
           className={cn(
             GRID_COLS,
-            "border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground",
+            "font-display border-b-[1.5px] border-[color:color-mix(in_oklab,var(--tint)_22%,var(--edge))] bg-[color:color-mix(in_oklab,var(--tint)_8%,transparent)] text-[11px] font-extrabold uppercase tracking-[0.1em] text-muted-foreground",
           )}
         >
           <div className="flex items-center gap-1.5 px-3 py-2">
@@ -752,15 +760,19 @@ function FullPlanTab({
             return (
               <div
                 key={wk}
-                className={cn(GRID_COLS, isNow && "bg-primary/5", done && "opacity-70")}
+                className={cn(
+                  GRID_COLS,
+                  isNow && "bg-[color:color-mix(in_oklab,var(--tint)_9%,transparent)]",
+                  done && "opacity-60",
+                )}
               >
                 <div className="flex flex-col justify-center gap-1 px-3 py-2.5">
                   {isNow ? (
-                    <span className="inline-flex w-fit items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    <span className="chip chip-solid w-fit px-2 py-0.5 text-[10px] uppercase tracking-wide">
                       <CircleDot className="size-3" aria-hidden /> Now
                     </span>
                   ) : null}
-                  <span className="text-[13px] font-medium tabular-nums">{formatWeek(wk)}</span>
+                  <span className="numeral text-[13px]">{formatWeek(wk)}</span>
                   <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 text-[11px] text-muted-foreground">
                     <input
                       type="checkbox"
@@ -925,8 +937,9 @@ function FullPlanTab({
         <button
           type="button"
           onClick={onRateTopics}
-          className="btn-soft rounded-xl px-4 py-2 text-xs"
+          className="btn-soft inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs"
         >
+          <SlidersHorizontal className="size-3.5" aria-hidden />
           Re-rate your topics
         </button>
       </div>
@@ -1056,17 +1069,20 @@ function MyTopicsTab({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">How confident do you feel?</p>
-          <p className="mt-0.5 max-w-3xl text-xs leading-relaxed text-muted-foreground">
+          <p className="font-display text-xl font-extrabold">How confident do you feel?</p>
+          <p className="mt-1 max-w-3xl text-xs leading-relaxed text-muted-foreground">
             Drag each topic into a column to tell us how you feel. The number on each card is
             something different — it&apos;s how well the topic is actually sticking, and it&apos;s
             the same number your plan uses. Open a card to rate its individual points.
           </p>
         </div>
-        <span className="text-xs text-muted-foreground">
-          {sorted} of {topics.length} topics sorted
+        <span className="chip">
+          <span className="numeral">
+            {sorted} of {topics.length}
+          </span>{" "}
+          sorted
         </span>
       </div>
 
