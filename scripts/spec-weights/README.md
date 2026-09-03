@@ -47,8 +47,15 @@ python3 -c "import sys; sys.path.insert(0,'scripts/curriculum'); \
   import generate_seed as g; g.emit_json('supabase/seed')"
 
 # an existing database — the seeds are `on conflict do nothing` and cannot
-# deliver a changed weight to a row that already exists
+# deliver a changed title or weight to a row that already exists
 python3 scripts/spec-weights/emit_migration.py > supabase/migrations/0013_spec_point_weights.sql
+
+# …or push straight to a live database, titles and weights, over PostgREST.
+# Never `load_seed.py` for this: it upserts whole rows and would blank
+# `video_url`, which the parsers never produce.
+set -a && . ./.env && set +a
+python3 scripts/spec-weights/apply_spec_points.py          # dry run
+python3 scripts/spec-weights/apply_spec_points.py --write
 ```
 
 ## Two shapes of specification

@@ -365,23 +365,72 @@ export function useCreateResource() {
   });
 }
 
+/**
+ * Set a task to one or more students.
+ *
+ * Homework is per student, never per course — so this takes a list rather than
+ * an id: setting the same task to four people is one action, and each gets
+ * their own assignment row, due date and note.
+ */
 export function useAssignHomework() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (input: {
-      studentId: string;
+      studentIds: string[];
       resourceId: string;
       assignedBy: string;
       dueAt: string | null;
       note: string | null;
     }) => {
-      const { error } = await supabase.from("homework_assignments").insert({
-        student_id: input.studentId,
-        resource_id: input.resourceId,
-        assigned_by: input.assignedBy,
-        due_at: input.dueAt,
-        note: input.note,
-      });
+      if (input.studentIds.length === 0) throw new Error("Pick at least one student");
+      const { error } = await supabase.from("homework_assignments").insert(
+        input.studentIds.map((student_id) => ({
+          student_id,
+          resource_id: input.resourceId,
+          assigned_by: input.assignedBy,
+          due_at: input.dueAt,
+          note: input.note,
+        })),
+      );
+      if (error) throw error;
+      return input.studentIds.length;
+    },
+    onSuccess: () => void qc.invalidateQueries(),
+  });
+}
+
+/** Rename a student. Display name only — the email is their login, not ours to edit. */
+export function useRenameStudent(studentId?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (displayName: string) => {
+      if (!studentId) throw new Error("No student");
+      const name = displayName.trim();
+      if (!name) throw new Error("A name is required");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ display_name: name })
+        .eq("id", studentId);
+      if (error) throw error;
+    },
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ["tutor"] }),
+  });
+}
+
+/**
+ * Delete a student outright.
+ *
+ * The RPC deletes the auth user, and everything the student owns cascades from
+ * there — profile, enrolments, confidence, schedule, reviews, plans, homework,
+ * chat and your notes. It is not recoverable, which is why the caller confirms
+ * by typing the name. See migration 0014 for why this cannot be a plain delete
+ * from the client.
+ */
+export function useDeleteStudent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (studentId: string) => {
+      const { error } = await supabase.rpc("delete_student", { target: studentId });
       if (error) throw error;
     },
     onSuccess: () => void qc.invalidateQueries(),

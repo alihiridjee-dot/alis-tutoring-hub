@@ -55,7 +55,7 @@ function TutorResources() {
   const [topicId, setTopicId] = useState<string | null>(null);
   const [linked, setLinked] = useState<string[]>([]);
 
-  const [assignTo, setAssignTo] = useState<string>("");
+  const [assignTo, setAssignTo] = useState<string[]>([]);
   const [assignResource, setAssignResource] = useState<string>("");
   const [dueAt, setDueAt] = useState("");
   const [note, setNote] = useState("");
@@ -206,7 +206,7 @@ function TutorResources() {
 
       {/* ── Set it ───────────────────────────────────────────────────── */}
       <section className="pop-card space-y-3 p-5">
-        <SectionHeading title="Set homework" hint="One student, one due date" />
+        <SectionHeading title="Set homework" hint="Pick the students it goes to" />
 
         {resources.length === 0 || students.length === 0 ? (
           <p className="surface-soft p-4 text-sm font-semibold text-muted-foreground">
@@ -229,18 +229,6 @@ function TutorResources() {
                   </option>
                 ))}
               </select>
-              <select
-                value={assignTo}
-                onChange={(e) => setAssignTo(e.target.value)}
-                className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
-              >
-                <option value="">Which student…</option>
-                {students.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.display_name || s.email}
-                  </option>
-                ))}
-              </select>
               <input
                 type="date"
                 value={dueAt}
@@ -250,18 +238,55 @@ function TutorResources() {
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Note for this student, this time (optional)"
+                placeholder="Note for this time (optional)"
                 className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
               />
             </div>
 
+            {/* Homework is per student, so who gets it is a choice rather than a
+                consequence of the task's subject — a dropdown hid that, and set
+                work to one person at a time when the same sheet usually goes to
+                several. */}
+            <div>
+              <p className="eyebrow">Who gets it</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {students.map((s) => {
+                  const on = assignTo.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() =>
+                        setAssignTo((list) =>
+                          on ? list.filter((x) => x !== s.id) : [...list, s.id],
+                        )
+                      }
+                      className={cn(
+                        "rounded-lg px-3 py-1.5 text-xs transition-all",
+                        on ? "btn-solid" : "btn-soft",
+                      )}
+                    >
+                      {s.display_name || s.email}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs font-semibold text-muted-foreground">
+                {assignTo.length === 0
+                  ? "Nobody selected yet."
+                  : `${assignTo.length} student${assignTo.length === 1 ? "" : "s"} selected — each gets their own copy.`}
+              </p>
+            </div>
+
             <button
               type="button"
-              disabled={!assignResource || !assignTo || !viewer.user || assign.isPending}
+              disabled={
+                !assignResource || assignTo.length === 0 || !viewer.user || assign.isPending
+              }
               onClick={() =>
                 assign.mutate(
                   {
-                    studentId: assignTo,
+                    studentIds: assignTo,
                     resourceId: assignResource,
                     assignedBy: viewer.user!.id,
                     // A bare date means end of that day, not midnight at its start.
@@ -269,10 +294,11 @@ function TutorResources() {
                     note: note.trim() || null,
                   },
                   {
-                    onSuccess: () => {
+                    onSuccess: (count) => {
                       setNote("");
                       setDueAt("");
-                      toast.success("Homework set");
+                      setAssignTo([]);
+                      toast.success(`Homework set for ${count} student${count === 1 ? "" : "s"}`);
                     },
                     onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
                   },

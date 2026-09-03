@@ -7,8 +7,8 @@
  * read-only view with an "edit" link somewhere else.
  */
 import { useMemo, useState } from "react";
-import { Link, createFileRoute, useParams } from "@tanstack/react-router";
-import { CalendarDays, Minus, NotebookPen, Plus, X } from "lucide-react";
+import { Link, createFileRoute, useNavigate, useParams } from "@tanstack/react-router";
+import { CalendarDays, Minus, NotebookPen, Plus, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -40,8 +40,12 @@ import {
 } from "@/lib/study";
 import type { ScheduleRow } from "@/lib/fsrs";
 import {
+  useAssignHomework,
+  useDeleteStudent,
   useOverridePlan,
   useRemoveEnrolment,
+  useRenameStudent,
+  useResources,
   useSaveEnrolment,
   useSyllabusOptions,
   useSaveLevel,
@@ -77,8 +81,12 @@ function StudentDetail() {
   const removeEnrolment = useRemoveEnrolment(studentId);
   const syllabusesQ = useSyllabusOptions(studentQ.data?.level);
   const saveNotes = useSaveNotes(studentId);
+  const rename = useRenameStudent(studentId);
+  const deleteStudent = useDeleteStudent();
+  const navigate = useNavigate();
 
   const [notesDraft, setNotesDraft] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
 
   const { topics, specPoints } = curriculumQ.data ?? { topics: [], specPoints: [] };
   const schedule = scheduleQ.data ?? new Map();
@@ -406,6 +414,9 @@ function StudentDetail() {
         </section>
       ) : null}
 
+      {/* ── Homework ─────────────────────────────────────────────────── */}
+      <SetHomeworkPanel studentId={studentId} />
+
       {/* ── Private notes ────────────────────────────────────────────── */}
       <section className="tint-amber pop-card space-y-3 p-5">
         <SectionHeading title="Your notes">
@@ -440,6 +451,85 @@ function StudentDetail() {
         >
           {saveNotes.isPending ? "Saving…" : "Save notes"}
         </button>
+      </section>
+
+      {/* ── Manage ───────────────────────────────────────────────────── */}
+      <section className="pop-card space-y-5 p-5">
+        <SectionHeading title="Manage" hint="Their name, or removing them altogether" />
+
+        <div>
+          <label className="eyebrow" htmlFor="student-name">
+            Display name
+          </label>
+          <p className="mt-1.5 text-xs font-medium text-muted-foreground">
+            What you and they see across the hub. Their email is their login, so it is not editable
+            here.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <input
+              id="student-name"
+              value={nameDraft ?? student.display_name ?? ""}
+              onChange={(e) => setNameDraft(e.target.value)}
+              placeholder={student.email ?? "Student name"}
+              className="premium-input h-11 min-w-0 flex-1 rounded-xl px-3.5 text-sm font-medium"
+            />
+            <button
+              type="button"
+              disabled={
+                rename.isPending ||
+                nameDraft === null ||
+                !nameDraft.trim() ||
+                nameDraft.trim() === (student.display_name ?? "")
+              }
+              onClick={() =>
+                rename.mutate(nameDraft ?? "", {
+                  onSuccess: () => {
+                    setNameDraft(null);
+                    toast.success("Name saved");
+                  },
+                  onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+                })
+              }
+              className="btn-solid rounded-xl px-5 py-2.5 text-sm disabled:opacity-50"
+            >
+              {rename.isPending ? "Saving…" : "Save name"}
+            </button>
+          </div>
+        </div>
+
+        <div className="border-t border-dashed border-[color:var(--edge)] pt-4">
+          <p className="eyebrow">Delete student</p>
+          <p className="mt-1.5 text-xs font-medium text-muted-foreground">
+            Removes their account and everything with it — plan, confidence, review history,
+            homework, messages and your notes on them. There is no undo, and re-creating the account
+            starts them from nothing.
+          </p>
+          <button
+            type="button"
+            disabled={deleteStudent.isPending}
+            onClick={() => {
+              const label = student.display_name || student.email || "this student";
+              // Typed, not clicked: an accidental OK on a plain confirm would
+              // wipe a term of review history with nothing to restore from.
+              const typed = window.prompt(
+                `Delete ${label} and everything they own?\n\n` +
+                  "This cannot be undone. Type DELETE to confirm.",
+              );
+              if (typed?.trim().toUpperCase() !== "DELETE") return;
+              deleteStudent.mutate(studentId, {
+                onSuccess: () => {
+                  toast.success(`${label} deleted`);
+                  void navigate({ to: "/tutor", replace: true });
+                },
+                onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+              });
+            }}
+            className="btn-soft mt-3 inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm text-[color:var(--destructive)] disabled:opacity-50"
+          >
+            <Trash2 className="size-4" aria-hidden />
+            {deleteStudent.isPending ? "Deleting…" : "Delete student"}
+          </button>
+        </div>
       </section>
 
       <p className="text-xs font-medium text-muted-foreground">
@@ -593,5 +683,94 @@ function PlanEditor({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Setting work from the student's own page.
+ *
+ * The library screen can set a task to several students at once; this is the
+ * other direction — you are already looking at one student, so the student is
+ * fixed and only the task and date are asked for.
+ */
+function SetHomeworkPanel({ studentId }: { studentId: string }) {
+  const viewer = useViewer();
+  const resourcesQ = useResources();
+  const assign = useAssignHomework();
+
+  const [resourceId, setResourceId] = useState("");
+  const [dueAt, setDueAt] = useState("");
+  const [note, setNote] = useState("");
+
+  const resources = resourcesQ.data ?? [];
+
+  return (
+    <section className="pop-card space-y-3 p-5">
+      <SectionHeading title="Set homework" hint="Goes to this student only" />
+
+      {resources.length === 0 ? (
+        <p className="surface-soft p-4 text-sm font-semibold text-muted-foreground">
+          Build a task on the Resources page first, then set it from here.
+        </p>
+      ) : (
+        <>
+          <div className="grid gap-2 sm:grid-cols-3">
+            <select
+              value={resourceId}
+              onChange={(e) => setResourceId(e.target.value)}
+              className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
+            >
+              <option value="">Which task…</option>
+              {resources.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.title}
+                </option>
+              ))}
+            </select>
+            <input
+              type="date"
+              value={dueAt}
+              onChange={(e) => setDueAt(e.target.value)}
+              className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
+            />
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Note for this time (optional)"
+              className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
+            />
+          </div>
+
+          <button
+            type="button"
+            disabled={!resourceId || !viewer.user || assign.isPending}
+            onClick={() =>
+              assign.mutate(
+                {
+                  studentIds: [studentId],
+                  resourceId,
+                  assignedBy: viewer.user!.id,
+                  // A bare date means end of that day, not midnight at its start.
+                  dueAt: dueAt ? new Date(`${dueAt}T23:59:59`).toISOString() : null,
+                  note: note.trim() || null,
+                },
+                {
+                  onSuccess: () => {
+                    setResourceId("");
+                    setDueAt("");
+                    setNote("");
+                    toast.success("Homework set");
+                  },
+                  onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+                },
+              )
+            }
+            className="btn-hero rounded-xl px-5 py-2.5 text-sm disabled:opacity-50"
+          >
+            {assign.isPending ? "Setting…" : "Set homework"}
+          </button>
+        </>
+      )}
+    </section>
   );
 }

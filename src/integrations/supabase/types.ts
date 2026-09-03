@@ -686,6 +686,7 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      delete_student: { Args: { target: string }; Returns: undefined };
       record_reviews_atomic: { Args: { _reviews: Json }; Returns: string[] };
       set_week_note: {
         Args: {
