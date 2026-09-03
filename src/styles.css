@@ -115,7 +115,6 @@
      that outline is what makes the look read as a book rather than a dashboard,
      so it is one token and never a one-off grey. */
   --edge: oklch(0.21 0.03 250 / 0.14);
-  --edge-strong: oklch(0.21 0.03 250 / 0.9);
   --border: oklch(0.21 0.03 250 / 0.1);
   --input: oklch(0.21 0.03 250 / 0.12);
   --ring: var(--primary);
@@ -195,7 +194,6 @@
   .premium-card,
   .sticker,
   .marker,
-  .stack-card,
   .banner-strip {
     position: relative;
   }
@@ -809,6 +807,33 @@
   animation: float-y 4.5s ease-in-out infinite;
 }
 
+/* The cast blinks.
+ *
+ * The single cheapest bit of life in the kit: the eyes squash for two frames
+ * every few seconds and the character stops being a sticker. Staggered per
+ * mascot via `--blink-delay` so a row of three never blinks in unison, which
+ * reads as a glitch rather than as three creatures.
+ *
+ * Only the neutral mood blinks — squashing a wink or a closed sleepy eye just
+ * makes the drawing twitch. */
+@keyframes blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  95%,
+  97% {
+    transform: scaleY(0.08);
+  }
+}
+.blink {
+  animation: blink 5.5s ease-in-out infinite;
+  animation-delay: var(--blink-delay, 0s);
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
 /* Doodle characters breathe rather than bounce. */
 @keyframes idle-tilt {
   0%,
@@ -821,7 +846,73 @@
 }
 .idle-tilt {
   animation: idle-tilt 5s ease-in-out infinite;
+  animation-delay: var(--idle-delay, 0s);
   transform-origin: bottom center;
+}
+
+/* A character rising into place from behind the card it peeks over. Runs once,
+   on load, and settles — it is a greeting, not a loop. */
+@keyframes peek-in {
+  from {
+    opacity: 0;
+    transform: translateY(26px) rotate(-6deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-4px) rotate(2deg);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) rotate(0deg);
+  }
+}
+.peek-in {
+  animation: peek-in 0.9s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+  animation-delay: var(--peek-delay, 0.35s);
+}
+
+/* The monogram tile's squash-and-stretch on hover of the wordmark. Silent until
+   someone reaches for it, which is what keeps it chic rather than busy. */
+@keyframes hop {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  25% {
+    transform: translateY(-4px) scale(0.94, 1.08);
+  }
+  55% {
+    transform: translateY(0) scale(1.08, 0.92);
+  }
+  80% {
+    transform: translateY(-1px) scale(1, 1);
+  }
+}
+.wordmark:hover .wordmark-tile,
+.wordmark:focus-visible .wordmark-tile {
+  animation: hop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* Tapping a nav tab pops its icon. The animation is declared only under the
+   active state, so it fires on the transition INTO active — i.e. exactly once
+   per navigation — and never on the tab you are already sitting on. */
+@keyframes tab-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.22);
+  }
+  70% {
+    transform: scale(0.94);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+[data-status="active"] .tab-pop,
+[data-active="true"] .tab-pop {
+  animation: tab-pop 0.4s cubic-bezier(0.34, 1.5, 0.64, 1);
 }
 
 @keyframes cheer {
@@ -903,6 +994,8 @@
   .float-y,
   .load-dot,
   .idle-tilt,
+  .blink,
+  .peek-in,
   .cheer,
   .screen-in,
   .cell-pop,
@@ -926,6 +1019,12 @@
   }
   .confetti-bit {
     display: none;
+  }
+  .wordmark:hover .wordmark-tile,
+  .wordmark:focus-visible .wordmark-tile,
+  [data-status="active"] .tab-pop,
+  [data-active="true"] .tab-pop {
+    animation: none;
   }
 }
 

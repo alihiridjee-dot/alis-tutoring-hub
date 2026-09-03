@@ -5,7 +5,7 @@ import {
   FOCUS_RED_BELOW,
   focusDemand,
   scheduleFocusWeeks,
-  splitEvenly,
+  splitAcrossWeeks,
   weekSliceOf,
   weeksOf,
   type Band,
@@ -108,10 +108,35 @@ describe("covered topics", () => {
 });
 
 describe("dividing a topic across its weeks", () => {
+  const sizes = <T>(chunks: T[][]) => chunks.map((c) => c.length);
+  const ones = (n: number) => Array.from({ length: n }, (_, i) => ({ id: i, weight: 1 }));
+
   test("no trailing week is a stub or empty", () => {
     // 13 points over 5 weeks used to go 3/3/3/3/1.
-    expect(splitEvenly(13, 5)).toEqual([3, 3, 3, 2, 2]);
-    expect(splitEvenly(3, 5).filter((n) => n === 0).length).toBe(2); // fewer points than weeks
+    expect(sizes(splitAcrossWeeks(ones(13), 5, (p) => p.weight))).toEqual([3, 3, 3, 2, 2]);
+    // Fewer points than weeks: one each, and the rest of the weeks are empty.
+    expect(sizes(splitAcrossWeeks(ones(3), 5, (p) => p.weight))).toEqual([1, 1, 1, 0, 0]);
+  });
+
+  test("cuts by work, not by count", () => {
+    // One practical worth three ordinary points, then six ordinary ones. By
+    // count this is 3/2/2; by work it has to be 1/3/3 so no week is double
+    // another. Weeks stay contiguous runs in spec order either way.
+    const points = [
+      { id: 0, weight: 3 },
+      ...Array.from({ length: 6 }, (_, i) => ({ id: i + 1, weight: 1 })),
+    ];
+    const chunks = splitAcrossWeeks(points, 3, (p) => p.weight);
+    const work = chunks.map((c) => c.reduce((s, p) => s + p.weight, 0));
+    expect(work).toEqual([3, 3, 3]);
+    expect(sizes(chunks)).toEqual([1, 3, 3]);
+  });
+
+  test("an unweighted course splits exactly as it did when counting", () => {
+    // Every weight 1 — the default — has to reproduce the old equal-count cut,
+    // or shipping the weights would silently re-plan every course that has none.
+    expect(sizes(splitAcrossWeeks(ones(10), 4))).toEqual([3, 3, 2, 2]);
+    expect(sizes(splitAcrossWeeks(ones(13), 5))).toEqual([3, 3, 3, 2, 2]);
   });
 
   test("weekSliceOf partitions the topic exactly once", () => {

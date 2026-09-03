@@ -56,23 +56,17 @@ const TUTOR_LINKS = [
 ] as const;
 
 /** The wordmark: a chunky monogram tile plus the name. */
-export function Wordmark({ compact = false }: { compact?: boolean }) {
+export function Wordmark() {
   return (
-    <span className="inline-flex items-center gap-2.5">
-      <span className="icon-tile-solid icon-tile font-display size-9 text-base font-extrabold text-white">
+    <span className="wordmark inline-flex items-center gap-2.5">
+      <span className="icon-tile-solid icon-tile wordmark-tile font-display size-9 text-base font-extrabold text-white">
         A
       </span>
       <span className="font-display text-[0.95rem] font-extrabold leading-tight">
-        {compact ? (
-          "Ali's Hub"
-        ) : (
-          <>
-            Ali&apos;s
-            <span className="block text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
-              Tutoring Hub
-            </span>
-          </>
-        )}
+        Ali&apos;s
+        <span className="block text-[0.7rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          Tutoring Hub
+        </span>
       </span>
     </span>
   );
@@ -110,7 +104,7 @@ export function AppNav() {
                 activeOptions={{ exact: to === "/tutor" }}
                 className="tab-item"
               >
-                <Icon className="size-4" aria-hidden />
+                <Icon className="tab-pop size-4" aria-hidden />
                 {label}
               </Link>
             ))}
@@ -159,7 +153,7 @@ export function AppNav() {
                 className="group flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-[0.65rem] font-bold text-muted-foreground transition-colors data-[status=active]:text-[color:var(--primary)]"
               >
                 <span className="flex size-8 items-center justify-center rounded-xl border border-transparent transition-colors group-data-[status=active]:border-[color:color-mix(in_oklab,var(--primary)_28%,transparent)] group-data-[status=active]:bg-[color:color-mix(in_oklab,var(--primary)_12%,transparent)]">
-                  <Icon className="size-[1.15rem]" aria-hidden />
+                  <Icon className="tab-pop size-[1.15rem]" aria-hidden />
                 </span>
                 <span className="max-w-full truncate">{label}</span>
               </Link>

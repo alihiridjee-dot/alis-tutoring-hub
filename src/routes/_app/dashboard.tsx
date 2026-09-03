@@ -154,6 +154,17 @@ function Dashboard() {
           number this screen is about, and a row of four equal tiles says
           nothing is. */}
       <section className="pop-card pop-card-hero flex flex-col gap-6 p-5 sm:flex-row sm:items-center sm:p-6">
+        {/* The one character on a working screen in the whole app: a study stack
+            peeking over the top edge of the headline card. `-z-10` puts it
+            BEHIND the card's own white fill, so only its head clears the edge —
+            which is the whole joke. Hidden on phones, where the card is full
+            width and there is no margin for it to sit in. */}
+        <Mascot
+          name="books"
+          size={76}
+          idle={false}
+          className="peek-in absolute -top-9 right-7 -z-10 hidden sm:block"
+        />
         <div className="flex items-center gap-5">
           <Ring value={stats.mastery} size={104} stroke={12}>
             <span className="numeral text-2xl">{stats.mastery}%</span>
@@ -204,10 +215,7 @@ function Dashboard() {
 
       {openHomework.length > 0 ? (
         <section className="space-y-3">
-          <SectionHeading
-            title="Homework"
-            hint={`${openHomework.length} open`}
-          >
+          <SectionHeading title="Homework" hint={`${openHomework.length} open`}>
             <Link to="/homework" className="btn-ghost rounded-xl px-3 py-1.5 text-xs">
               See all
             </Link>

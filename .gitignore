@@ -10,3 +10,4 @@ dist
 *.log
 __pycache__/
 *.pyc
+scripts/spec-weights/out/

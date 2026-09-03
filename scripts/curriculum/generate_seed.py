@@ -13,6 +13,8 @@ UUIDs are derived (uuid5) from board|level|subject|code, so re-running a file
 is a no-op instead of a duplicate curriculum, and a spec point keeps its id
 across reloads — which matters because student cards reference it.
 """
+import json
+import os
 import uuid
 import parse_edexcel_gcse as G
 import parse_edexcel_alevel as A
@@ -21,6 +23,21 @@ import parse_ocr_gcse as OG
 import parse_aqa as Q
 
 NS = uuid.UUID("6f9619ff-8b86-d011-b42d-00c04fc964ff")
+
+#: Per-point workload, keyed by the same derived id the rows carry. Produced by
+#: `scripts/spec-weights/score.py` and reviewed before it lands; see that
+#: folder's README. Missing means 1, which is what every point was before the
+#: weights existed and what an unscored course still plans as.
+WEIGHTS = {}
+_weights_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "spec-weights", "out", "weights.json"
+)
+if os.path.exists(_weights_path):
+    WEIGHTS = json.load(open(_weights_path))
+
+
+def weight_of(point_id):
+    return WEIGHTS.get(point_id, 1)
 
 # The board's own qualification code, stored on every topic as `syllabus`.
 # This is what keeps Edexcel A-Level Biology A and B apart now that the schema
@@ -141,7 +158,7 @@ def emit(stem, kind, arg, subject, board, level, label):
             pid = det_id(stem, board, level, subject, "point", p["code"])
             lines.append(
                 "insert into public.spec_points (id, topic_id, code, title, sort_order, weight) values ("
-                f"{lit(pid)}, {lit(tid)}, {lit(p['code'])}, {lit(p['title'])}, {pi}, 1) "
+                f"{lit(pid)}, {lit(tid)}, {lit(p['code'])}, {lit(p['title'])}, {pi}, {weight_of(pid)}) "
                 "on conflict (id) do nothing;"
             )
             n_points += 1
@@ -190,10 +207,10 @@ def emit_json(out_dir):
                 "syllabus": SYLLABUS[stem], "title": title, "sort_order": ti,
             })
             for pi, p in enumerate(t["points"]):
+                pid = det_id(stem, board, level, subject, "point", p["code"])
                 points.append({
-                    "id": det_id(stem, board, level, subject, "point", p["code"]),
-                    "topic_id": tid, "code": p["code"], "title": p["title"],
-                    "sort_order": pi, "weight": 1,
+                    "id": pid, "topic_id": tid, "code": p["code"], "title": p["title"],
+                    "sort_order": pi, "weight": weight_of(pid),
                 })
 
     # A derived id can only collide if two specs share board|level|subject|code.

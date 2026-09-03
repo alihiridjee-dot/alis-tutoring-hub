@@ -16,11 +16,15 @@ import {
   diffPacing,
   NEVER_TAUGHT_BELOW,
   overrunWeeks,
+  focusBudgetFor,
+  focusLoadFor,
   scheduleFocusWeeks,
   selectWeekPoints,
+  weightOf,
   type Band,
   type FocusBand,
   type FocusCandidate,
+  type FocusLoad,
   type PacingDiff,
   type WeekPoint,
 } from "@/lib/pacing";
@@ -52,6 +56,13 @@ export type Roadmap = {
   focusBands: FocusBand[];
   /** Weeks by which teaching overruns the revision window. 0 means it fits. */
   overrun: number;
+  /**
+   * How the revision lane's weekly load compares with the teaching spine's.
+   *
+   * `overloaded` means the student's own ratings have asked for more revision
+   * than there is new material, which is a year that does not fit in the year.
+   */
+  focusLoad: FocusLoad;
 };
 
 export const programmeKeys = {
@@ -155,6 +166,7 @@ export function useRoadmap(args: {
           code: sp.code,
           pointTitle: sp.title,
           mastery: m,
+          weight: weightOf(sp),
         });
       }
       const focusBands = scheduleFocusWeeks({
@@ -166,15 +178,36 @@ export function useRoadmap(args: {
         currentMonday: weekStartKey(),
         examDate: args.examDate!,
       });
+      const focusBudget = focusBudgetFor({
+        candidates,
+        currentMonday: weekStartKey(),
+        examDate: args.examDate!,
+      });
+
+      // A topic's share of the timetable is the work in it, not the number of
+      // rows: twelve one-line recall statements are not eight practicals.
+      const pointWeightByTopic = new Map(
+        args.topics.map((t) => [
+          t.id,
+          (byTopic.get(t.id) ?? []).reduce((s, p) => s + weightOf(p), 0),
+        ]),
+      );
 
       const live = computePacing({
         topics: args.topics,
         pointCountByTopic: new Map(
           args.topics.map((t) => [t.id, (byTopic.get(t.id) ?? []).length]),
         ),
+        pointWeightByTopic,
         programStart,
         examDate: args.examDate!,
         coveredTopicIds: settledTopics,
+      });
+
+      const focusLoad = focusLoadFor({
+        budget: focusBudget,
+        topicWeights: [...pointWeightByTopic.values()],
+        bands: live,
       });
 
       // First view seeds the baseline so the student is not greeted by a diff
@@ -199,6 +232,7 @@ export function useRoadmap(args: {
           settledTopics,
           focusBands,
           overrun: overrunWeeks(live, args.examDate!),
+          focusLoad,
         };
       }
 
@@ -213,6 +247,7 @@ export function useRoadmap(args: {
         settledTopics,
         focusBands,
         overrun: overrunWeeks(live, args.examDate!),
+        focusLoad,
       };
     },
   });
@@ -247,10 +282,12 @@ export function weekFromRoadmap(args: {
   confidence: Map<string, number>;
   weekStart?: string;
 }): WeekPoint[] {
-  const pointsByTopic = new Map<string, { id: string; sort_order: number }[]>();
+  const pointsByTopic = new Map<string, { id: string; sort_order: number; weight: number }[]>();
   for (const sp of args.specPoints) {
     const list = pointsByTopic.get(sp.topic_id);
-    const entry = { id: sp.id, sort_order: sp.sort_order };
+    // Weight travels with the point: the week's budget is spent in work, and
+    // the slice it takes has to be cut the same way the roadmap cut it.
+    const entry = { id: sp.id, sort_order: sp.sort_order, weight: weightOf(sp) };
     if (list) list.push(entry);
     else pointsByTopic.set(sp.topic_id, [entry]);
   }

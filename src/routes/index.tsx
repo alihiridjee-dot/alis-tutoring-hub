@@ -102,7 +102,10 @@ function WeekPreview() {
 
       <div className="mt-4 flex items-center gap-3">
         <div className="h-3 w-full overflow-hidden rounded-full border border-[color:color-mix(in_oklab,var(--tint)_20%,transparent)] bg-[color:color-mix(in_oklab,var(--foreground)_6%,transparent)]">
-          <div className="bar-grow h-full rounded-full bg-[color:var(--tint)]" style={{ width: "72%" }} />
+          <div
+            className="bar-grow h-full rounded-full bg-[color:var(--tint)]"
+            style={{ width: "72%" }}
+          />
         </div>
         <span className="numeral shrink-0 text-sm text-[color:var(--tint)]">72%</span>
       </div>
@@ -188,10 +191,12 @@ function LandingPage() {
             {/* The cast, as a "these are your subjects" flourish. Small, but not
                 so small the faces stop reading — under ~50px they turn back
                 into plain icons and the charm is gone. */}
+            {/* Offset idle delays: three characters breathing in lockstep reads
+                as one animated object, not as three of them. */}
             <span className="hidden items-center gap-1 sm:flex">
-              <Mascot name="cell" size={54} className="-mr-1" />
-              <Mascot name="flask" size={54} className="-mr-1" />
-              <Mascot name="bolt" size={54} />
+              <Mascot name="cell" size={54} className="-mr-1 [--idle-delay:0s]" />
+              <Mascot name="flask" size={54} className="-mr-1 [--idle-delay:-1.6s]" />
+              <Mascot name="bolt" size={54} className="[--idle-delay:-3.2s]" />
             </span>
           </div>
           <p className="mt-5 text-xs font-semibold text-muted-foreground">
@@ -239,7 +244,9 @@ function LandingPage() {
           <div className="flex items-center gap-5">
             <Mascot name="rocket" mood="proud" size={92} />
             <div>
-              <h2 className="font-display text-2xl font-extrabold sm:text-3xl">Ready when you are</h2>
+              <h2 className="font-display text-2xl font-extrabold sm:text-3xl">
+                Ready when you are
+              </h2>
               <p className="mt-1.5 max-w-md text-sm leading-relaxed text-muted-foreground">
                 Log in and your week is already waiting — sorted, planned and pointed at the next
                 thing worth doing.

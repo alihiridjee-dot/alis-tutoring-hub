@@ -46,9 +46,13 @@ export function AgencyBanner() {
   return (
     <section aria-labelledby="agencies-heading" className="border-y border-border/70 bg-card/40">
       <div className="mx-auto max-w-5xl px-6 py-10 sm:py-12">
-        <h2 id="agencies-heading" className="eyebrow text-center">
-          Accepting referrals through
-        </h2>
+        {/* `.eyebrow` is inline-flex (it carries a leading rule), so `text-center`
+            on the heading itself no longer centres it — the flex wrapper does. */}
+        <div className="flex justify-center">
+          <h2 id="agencies-heading" className="eyebrow">
+            Accepting referrals through
+          </h2>
+        </div>
         <ul className="mt-8 flex flex-wrap items-center justify-center gap-x-12 gap-y-8 sm:gap-x-16">
           {AGENCIES.map(({ name, src, width, height, className }) => (
             <li key={name} className="flex items-center">
