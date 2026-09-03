@@ -109,45 +109,57 @@ reported is the heaviest week divided by the lightest, which is how much a
 student's week varies for reasons that have nothing to do with them.
 
 Over a 34-week year (first Monday of September to the middle of the summer
-series, less three revision weeks), **13 of 17 courses levelled out**:
+series, less three revision weeks), **14 of 17 courses levelled out**:
 
 | Course | Points | Before | After |
 | --- | --- | --- | --- |
 | AQA A-Level Biology (7402) | 53 | 8.6x | **3.8x** |
-| AQA GCSE Physics (8463) | 81 | 5.5x | **2.4x** |
-| OCR GCSE Chemistry (J248) | 149 | 4.7x | **3.6x** |
-| AQA GCSE Chemistry (8462) | 124 | 3.6x | **2.1x** |
-| OCR GCSE Physics (J249) | 182 | 3.5x | **3.0x** |
-| AQA A-Level Chemistry (7405) | 91 | 3.1x | **1.8x** |
-| AQA GCSE Biology (8461) | 97 | 3.0x | **2.3x** |
-| AQA A-Level Physics (7408) | 147 | 2.7x | **1.9x** |
-| Edexcel A-Level Biology B (9BI0) | 220 | 2.3x | **1.9x** |
+| AQA GCSE Physics (8463) | 81 | 5.5x | **2.1x** |
+| AQA A-Level Physics (7408) | 147 | 4.4x | **2.5x** |
+| OCR GCSE Physics (J249) | 182 | 4.4x | **2.0x** |
+| Edexcel A-Level Chemistry (9CH0) | 325 | 3.9x | **3.5x** |
+| AQA GCSE Chemistry (8462) | 124 | 3.6x | **1.6x** |
+| AQA GCSE Biology (8461) | 97 | 3.5x | **2.3x** |
+| OCR GCSE Chemistry (J248) | 149 | 3.3x | **2.2x** |
+| Edexcel GCSE Chemistry (1CH0) | 237 | 3.1x | **1.4x** |
+| AQA A-Level Chemistry (7405) | 91 | 3.1x | **2.1x** |
+| Edexcel GCSE Biology (1BI0) | 165 | 2.2x | **1.7x** |
 | Edexcel A-Level Biology A (9BN0) | 137 | 2.2x | **1.6x** |
-| Edexcel GCSE Chemistry (1CH0) | 237 | 2.2x | **2.1x** |
-| Edexcel GCSE Biology (1BI0) | 165 | 2.1x | **1.8x** |
+| Edexcel A-Level Biology B (9BI0) | 220 | 1.6x | **1.5x** |
 
-The four that did not move are limited by the calendar, not by the weights.
-**`distributeWeeks` gives every topic at least one week**, so once a course has
-nearly as many topics as there are weeks, every band is one week long and there
-is nothing left for `splitAcrossWeeks` to cut:
+"Before" is the same layout with band sizes and week cuts taken from row counts
+instead of work, so the column isolates the weights themselves.
 
-| Course | Topics | One-week bands | Before | After |
-| --- | --- | --- | --- | --- |
-| OCR A-Level Chemistry (H432) | 45 | **all 45** | 15.2x | 15.2x |
-| OCR A-Level Biology (H420) | 31 | 28 | 4.8x | 4.8x |
-| Edexcel A-Level Chemistry (9CH0) | 19 | 6 | 4.6x | 4.6x |
-| Edexcel GCSE Physics (1PH0) | 15 | 1 | 4.4x | 4.5x |
+### The topic-count floor, and how it was removed
 
-H432 asks for 45 weeks of a 34-week year — `overrunWeeks` already reports that
-to the tutor, and no amount of weighting fixes a course that does not fit. The
-remaining variation on the other three is a two-point topic holding a whole week
-next to a thirty-nine-point one; letting small adjacent topics share a week
-would address it, and is a separate change to how a band works.
+Three courses barely move: OCR A-Level Chemistry (45 topics), OCR A-Level
+Biology (31) and Edexcel A-Level Chemistry (19). They used to be far worse. The
+old rule promised **every topic a week of its own**, which is a promise the
+calendar cannot keep: H432 asked for 45 weeks of a 34-week year and was
+scheduled eleven weeks past its own exam, and on H420 an eleven-point topic and
+a three-point topic each got exactly one week.
 
-Two courses moved slightly the wrong way (1PH0 4.4x→4.5x, J247 2.3x→2.8x). Both
-have a tiny topic pinned at one week that sets the denominator either way, and
-weighting the *other* topics' bands changed how thinly they spread. It is noise
-around a floor, not the split misbehaving.
+`distributeWeeks` now lays topics on a continuous work axis and lets **two small
+neighbours share a week** so a big topic can have two. Nothing runs past the
+revision window any more, and `crowdedWeeks` reports how many weeks had to
+double up so the tutor can see the pressure. On H420 that turned the first week
+of the year from eleven spec points into five, with Cell structure spanning two
+weeks and Planning sharing one with Implementing.
+
+Boundaries are rounded to the **nearest** week, and when there are more topics
+than weeks the assignment is handed to `splitAcrossWeeks` instead. Both details
+were measured, not guessed:
+
+| Boundary rule | H432 heaviest:lightest | Shared weeks |
+| --- | --- | --- |
+| Round outwards (floor/ceil) | 5.0x | 31 of 34 — nearly every week |
+| Round to nearest | 8.6x | 16 |
+| Round to nearest, balanced when topics > weeks | **3.5x** | 10 |
+
+Rounding outwards makes every topic overlap its neighbour wherever a boundary
+falls mid-week, which is not sharing, it is smearing. Rounding to the nearest
+tiles cleanly but lets the error at each boundary accumulate — hence handing the
+crowded case to the exact min-max partition.
 
 ## Caveats
 

@@ -4,6 +4,8 @@ import {
   distributeWeeks,
   computePacing,
   bandForWeek,
+  bandsForWeek,
+  crowdedWeeks,
   diffPacing,
   signatureOf,
   selectWeekPoints,
@@ -30,29 +32,64 @@ const topic = (id: string, sort: number): Topic =>
   }) as Topic;
 
 describe("distributeWeeks", () => {
-  test("gives every topic at least one week", () => {
-    expect(distributeWeeks([10, 1, 1], 3)).toEqual([1, 1, 1]);
-    // Fewer weeks than topics still cannot drop one.
-    expect(distributeWeeks([5, 5, 5], 2)).toEqual([1, 1, 1]);
-  });
+  /** Weeks each topic runs across, for readability in the expectations below. */
+  const spans = (sizes: number[], weeks: number) =>
+    distributeWeeks(sizes, weeks).map(([a, b]) => b - a + 1);
+  /** How many weeks end up teaching more than one topic. */
+  const shared = (sizes: number[], weeks: number) => {
+    const per = new Map<number, number>();
+    for (const [a, b] of distributeWeeks(sizes, weeks))
+      for (let w = a; w <= b; w++) per.set(w, (per.get(w) ?? 0) + 1);
+    return [...per.values()].filter((n) => n > 1).length;
+  };
 
-  test("total always equals the weeks available", () => {
-    for (const weeks of [4, 7, 12, 30, 52]) {
-      const out = distributeWeeks([3, 17, 8, 22, 5], weeks);
-      expect(out.reduce((a, b) => a + b, 0)).toBe(Math.max(weeks, 5));
-    }
+  test("every topic gets at least one week", () => {
+    for (const [a, b] of distributeWeeks([10, 1, 1, 10], 4)) expect(b).toBeGreaterThanOrEqual(a);
+    expect(distributeWeeks([10, 1, 1, 10], 4)).toHaveLength(4);
   });
 
   test("bigger topics get more weeks", () => {
-    const [small, big] = distributeWeeks([2, 40], 10);
+    const [small, big] = spans([2, 40], 10);
     expect(big).toBeGreaterThan(small);
   });
 
-  test("largest-remainder does not strand the rounding error on the last topic", () => {
-    // Three equal topics over 10 weeks: 4/3/3 in some order, never 3/3/4-with-a-gap.
-    const out = distributeWeeks([1, 1, 1], 10);
-    expect(out.reduce((a, b) => a + b, 0)).toBe(10);
-    expect(Math.max(...out) - Math.min(...out)).toBeLessThanOrEqual(1);
+  test("topics tile the year without spurious overlap", () => {
+    // Three equal topics over ten weeks is 3/4/3 with nothing doubled up.
+    // Rounding boundaries outwards instead made two of the ten shared.
+    expect(spans([1, 1, 1], 10)).toEqual([3, 4, 3]);
+    expect(shared([1, 1, 1], 10)).toBe(0);
+  });
+
+  test("the last topic ends on the last week, never past it", () => {
+    for (const weeks of [4, 7, 12, 30, 52]) {
+      const out = distributeWeeks([3, 17, 8, 22, 5], weeks);
+      expect(out[out.length - 1][1]).toBe(weeks - 1);
+      expect(Math.max(...out.map(([, b]) => b))).toBeLessThan(weeks);
+    }
+  });
+
+  test("small neighbours share a week so a big topic can have its own", () => {
+    // Two heavy topics either side of two tiny ones, four weeks to fit them.
+    // Giving every topic a week each would spend half the year on the tiny two.
+    const out = distributeWeeks([10, 1, 1, 10], 4);
+    const [tinyA, tinyB] = [out[1], out[2]];
+    expect(tinyA).toEqual(tinyB); // the same single week
+    expect(spans([10, 1, 1, 10], 4)[0]).toBeGreaterThan(1);
+  });
+
+  test("more topics than weeks still fits inside the year", () => {
+    // The old rule promised each topic a week of its own, so a 45-topic course
+    // in 34 weeks was scheduled 11 weeks past its own exam.
+    const out = distributeWeeks(new Array(45).fill(1), 34);
+    expect(out).toHaveLength(45);
+    expect(Math.max(...out.map(([, b]) => b))).toBe(33);
+    expect(shared(new Array(45).fill(1), 34)).toBeGreaterThan(0);
+  });
+
+  test("a topic with no measured work still gets taught", () => {
+    const out = distributeWeeks([0, 5, 0], 6);
+    expect(out).toHaveLength(3);
+    for (const [a, b] of out) expect(b).toBeGreaterThanOrEqual(a);
   });
 });
 
@@ -463,11 +500,126 @@ describe("focus load", () => {
     expect(focusLoadFor({ budget: 12, topicWeights: [100], bands }).overloaded).toBe(true);
   });
 
+  test("a week shared by two topics is one week, not two", () => {
+    // Summing each band's length counted a shared week twice, which halved the
+    // spine's apparent pace and called an empty backlog an overload.
+    const shared: Band[] = [
+      {
+        topicId: "a",
+        title: "A",
+        startWeek: "2026-08-24",
+        endWeek: "2026-08-31",
+        weeks: 2,
+        pointCount: 5,
+        kind: "teach",
+      },
+      {
+        topicId: "b",
+        title: "B",
+        startWeek: "2026-08-31",
+        endWeek: "2026-08-31",
+        weeks: 1,
+        pointCount: 5,
+        kind: "teach",
+      },
+    ];
+    // Two distinct weeks (24th and 31st), not the three the lengths add up to.
+    expect(focusLoadFor({ budget: 1, topicWeights: [20], bands: shared }).spine).toBe(10);
+  });
+
   test("no teaching left to compare against is not an overload", () => {
     expect(focusLoadFor({ budget: 20, topicWeights: [], bands: [] })).toMatchObject({
       spine: 0,
       ratio: 0,
       overloaded: false,
     });
+  });
+});
+
+describe("two small topics sharing a week", () => {
+  // Four topics, three weeks: the two tiny middle ones have to double up.
+  const topics = [topic("big1", 0), topic("tiny1", 1), topic("tiny2", 2), topic("big2", 3)];
+  const bands = computePacing({
+    topics,
+    pointCountByTopic: new Map([
+      ["big1", 10],
+      ["tiny1", 1],
+      ["tiny2", 1],
+      ["big2", 10],
+    ]),
+    programStart: "2026-09-07",
+    examDate: "2026-10-19", // three teaching weeks before the revision reserve
+    now: new Date("2026-09-07T09:00:00"),
+  });
+
+  test("every topic is scheduled, and none past the revision window", () => {
+    const teach = bands.filter((b) => b.kind === "teach");
+    expect(teach).toHaveLength(4);
+    const revision = bands.find((b) => b.kind === "revision")!;
+    for (const b of teach) expect(b.endWeek < revision.startWeek).toBe(true);
+  });
+
+  test("the small ones share a week rather than taking one each", () => {
+    const tiny1 = bands.find((b) => b.topicId === "tiny1")!;
+    const tiny2 = bands.find((b) => b.topicId === "tiny2")!;
+    expect(tiny1.startWeek).toBe(tiny2.startWeek);
+    expect(bandsForWeek(bands, tiny1.startWeek).map((b) => b.topicId)).toContain("tiny2");
+    expect(crowdedWeeks(bands)).toBeGreaterThan(0);
+  });
+
+  test("bandForWeek still answers with the week's leading topic", () => {
+    const tiny1 = bands.find((b) => b.topicId === "tiny1")!;
+    expect(bandForWeek(bands, tiny1.startWeek)?.topicId).toBe(
+      bandsForWeek(bands, tiny1.startWeek)[0].topicId,
+    );
+  });
+
+  test("the week's spine budget covers BOTH topics sharing it", () => {
+    const week = bands.find((b) => b.topicId === "tiny1")!.startWeek;
+    const pointsByTopic = new Map(
+      topics.map((t) => [
+        t.id,
+        Array.from({ length: t.id.startsWith("tiny") ? 1 : 10 }, (_, i) => ({
+          id: `${t.id}-${i}`,
+          sort_order: i,
+          weight: 1,
+        })),
+      ]),
+    );
+    // Everything from the earlier weeks is done, so only this week's work is owed.
+    const settled = new Set(pointsByTopic.get("big1")!.map((p) => p.id));
+    const picked = selectWeekPoints({
+      bands,
+      weekStart: week,
+      pointsByTopic,
+      confidence: new Map(),
+      stability: new Map(),
+      settled,
+    });
+    const ids = picked.map((p) => p.spec_point_id);
+    // Budgeting from the first band alone would fit one point and leave the
+    // topic sharing the week permanently owed.
+    expect(ids).toContain("tiny1-0");
+    expect(ids).toContain("tiny2-0");
+  });
+
+  test("a settled topic frees its week for the rest", () => {
+    const withCovered = computePacing({
+      topics,
+      pointCountByTopic: new Map([
+        ["big1", 10],
+        ["tiny1", 1],
+        ["tiny2", 1],
+        ["big2", 10],
+      ]),
+      programStart: "2026-09-07",
+      examDate: "2026-10-19",
+      now: new Date("2026-09-07T09:00:00"),
+      coveredTopicIds: new Set(["big1"]),
+    });
+    expect(withCovered.find((b) => b.topicId === "big1")!.weeks).toBe(0);
+    // big2 now has room it did not have when big1 was still on the timetable.
+    const before = bands.find((b) => b.topicId === "big2")!.weeks;
+    expect(withCovered.find((b) => b.topicId === "big2")!.weeks).toBeGreaterThanOrEqual(before);
   });
 });

@@ -50,6 +50,27 @@ export function formatWeek(weekKey: string): string {
   });
 }
 
+/**
+ * The same week without the weekday — "19 Oct".
+ *
+ * For tables and columns, where every row is a Monday anyway and repeating
+ * "Mon" down the page is noise that stops the dates lining up.
+ */
+export function formatWeekShort(weekKey: string): string {
+  const [y, m, d] = weekKey.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+/** Whole weeks from one week key to another. Negative means earlier. */
+export function weeksApart(from: string, to: string): number {
+  const a = new Date(`${from}T00:00:00`).getTime();
+  const b = new Date(`${to}T00:00:00`).getTime();
+  return Math.round((b - a) / (7 * 86_400_000));
+}
+
 /** Whole days from now until `iso`. Negative means overdue. */
 export function daysUntil(iso: string): number {
   const then = new Date(iso);

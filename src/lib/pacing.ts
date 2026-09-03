@@ -88,35 +88,75 @@ function weeksBetween(from: string, to: string): number {
 }
 
 /**
- * Spread topics across the available weeks, proportional to their size.
+ * Which weeks each topic runs across, laid out on one continuous work axis.
  *
- * Largest-remainder rather than naive rounding: rounding each share
- * independently loses or invents whole weeks, and the last topic silently
- * absorbs the error — which in practice meant the final topic before the exam
- * got either three weeks or none.
+ * Returns `[firstWeek, lastWeek]` per topic, as indices from the start of
+ * teaching. **Two topics may be given the same week.** That is the point.
+ *
+ * The rule this replaced gave every topic a whole week of its own and shared
+ * out whatever was left over. On a course with nearly as many topics as weeks
+ * there was nothing left over, so every topic got exactly one week whatever its
+ * size — OCR A-Level Biology put an eleven-point topic and a three-point topic
+ * in a week each, and a 45-topic Chemistry course simply ran eleven weeks past
+ * its own exam. A minimum of one week per topic is a promise the calendar
+ * cannot always keep.
+ *
+ * So topics are laid end to end by workload and the year is cut into equal
+ * slices of work. A topic bigger than a slice spans several weeks; two small
+ * neighbours fall inside one slice and share it. Nothing is dropped and nothing
+ * runs past the revision window.
+ *
+ * Contiguous and in spec order, so a topic is never split and never overtaken.
  */
-export function distributeWeeks(sizes: number[], totalWeeks: number): number[] {
+export function distributeWeeks(sizes: number[], totalWeeks: number): [number, number][] {
   const n = sizes.length;
   if (n === 0) return [];
-  if (totalWeeks <= n) return sizes.map(() => 1);
+  const weeks = Math.max(1, Math.floor(totalWeeks));
 
-  const total = sizes.reduce((a, b) => a + b, 0) || n;
-  // Every topic gets at least one week; the rest is shared out by size.
-  const spare = totalWeeks - n;
-  const exact = sizes.map((s) => (s / total) * spare);
-  const base = exact.map(Math.floor);
-  let left = spare - base.reduce((a, b) => a + b, 0);
+  // A topic with no measured work still has to be taught, so it gets a nominal
+  // share rather than a zero-width slot that collapses onto its neighbour.
+  const work = sizes.map((s) => (s > 0 ? s : 1));
 
-  const order = exact
-    .map((v, i) => ({ i, frac: v - Math.floor(v) }))
-    .sort((a, b) => b.frac - a.frac);
-
-  for (const { i } of order) {
-    if (left <= 0) break;
-    base[i] += 1;
-    left -= 1;
+  // MORE TOPICS THAN WEEKS. Every week has to carry a group of whole topics, so
+  // the job is to choose the group boundaries — which is the same balancing
+  // problem `splitAcrossWeeks` already solves exactly. Rounding an axis here
+  // instead let the error at each boundary accumulate, and OCR A-Level
+  // Chemistry's 45 topics came out with weeks eight times heavier than others.
+  if (weeks < n) {
+    const groups = splitAcrossWeeks(
+      work.map((w, i) => ({ w, i })),
+      weeks,
+      (t) => t.w,
+    );
+    const out: [number, number][] = new Array(n);
+    groups.forEach((group, wk) => {
+      for (const t of group) out[t.i] = [wk, wk];
+    });
+    // A group can come out empty when there are more weeks than the partition
+    // could use; nothing should be left without a week either way.
+    for (let i = 0; i < n; i++) out[i] ??= [weeks - 1, weeks - 1];
+    return out;
   }
-  return base.map((b) => b + 1);
+
+  const total = work.reduce((a, b) => a + b, 0);
+  const perWeek = total / weeks;
+
+  // Each topic's start and end on the axis, in week units. Boundaries are
+  // rounded to the NEAREST week rather than spread outwards: rounding outwards
+  // (floor the start, ceil the end) makes every topic overlap its neighbour
+  // wherever a boundary falls mid-week, so three equal topics over ten weeks
+  // came out sharing two of them for no reason. Rounding to the nearest lets
+  // topics tile cleanly, and leaves an overlap only where one genuinely is too
+  // small to own a week of its own — which is the case this exists for.
+  const out: [number, number][] = [];
+  let at = 0;
+  for (let i = 0; i < n; i++) {
+    const first = Math.min(weeks - 1, Math.round(at / perWeek));
+    at += work[i];
+    const last = Math.min(weeks - 1, Math.max(first, Math.round(at / perWeek) - 1));
+    out.push([first, last]);
+  }
+  return out;
 }
 
 /**
@@ -139,41 +179,51 @@ export function computePacing(input: PacingInput): Band[] {
   // Never plan into the past: a student joining in March does not get October.
   const flowStart = input.programStart > thisMonday ? input.programStart : thisMonday;
 
-  const teachingWeeks = Math.max(topics.length, weeksBetween(flowStart, revisionStart));
+  // However many weeks the calendar actually has. This used to be floored at
+  // the number of topics, to guarantee each one a week of its own; topics can
+  // now share a week, so the floor is gone and teaching fits inside the window
+  // instead of running past the exam.
+  const teachingWeeks = Math.max(1, weeksBetween(flowStart, revisionStart));
   const counts = topics.map((t) => input.pointCountByTopic.get(t.id) ?? 1);
   // Weeks are shared out by WORK; the count is kept only for display.
   const sizes = topics.map((t, i) => input.pointWeightByTopic?.get(t.id) ?? counts[i]);
-  const spans = distributeWeeks(sizes, teachingWeeks);
+
+  // A settled topic is not re-taught, so it takes up none of the year. Leaving
+  // it on the axis would reserve time for work nobody is going to do.
+  const pending = topics.map((t) => !covered.has(t.id));
+  const spans = distributeWeeks(
+    sizes.filter((_, i) => pending[i]),
+    teachingWeeks,
+  );
 
   const bands: Band[] = [];
-  let cursor = flowStart;
+  let s = 0;
 
   topics.forEach((topic, i) => {
-    const weeks = spans[i];
-    // A settled topic is not re-taught, so it does not consume weeks — but it
-    // keeps a band so the roadmap can still show it as done.
-    if (covered.has(topic.id)) {
+    // A settled topic keeps a band, at zero weeks, so the roadmap can still
+    // show it as done. `bandsForWeek` skips those.
+    if (!pending[i]) {
       bands.push({
         topicId: topic.id,
         title: topic.title,
-        startWeek: cursor,
-        endWeek: cursor,
+        startWeek: flowStart,
+        endWeek: flowStart,
         weeks: 0,
         pointCount: counts[i],
         kind: "teach",
       });
       return;
     }
+    const [first, last] = spans[s++];
     bands.push({
       topicId: topic.id,
       title: topic.title,
-      startWeek: cursor,
-      endWeek: addWeeks(cursor, weeks - 1),
-      weeks,
+      startWeek: addWeeks(flowStart, first),
+      endWeek: addWeeks(flowStart, last),
+      weeks: last - first + 1,
       pointCount: counts[i],
       kind: "teach",
     });
-    cursor = addWeeks(cursor, weeks);
   });
 
   bands.push({
@@ -192,11 +242,16 @@ export function computePacing(input: PacingInput): Band[] {
 /**
  * How many weeks the teaching overruns the revision window, if any.
  *
- * Every topic needs at least one week, so a course with more topics than there
- * are weeks before the exam cannot be made to fit. Rather than silently
- * scheduling past the exam date — which is what a naive cursor does — this
- * reports the shortfall so the tutor can see it and act: move the exam, drop
- * the revision reserve, or accept that some topics are self-study.
+ * This used to be the headline problem: every topic was promised a week of its
+ * own, so a course with more topics than weeks was scheduled straight past its
+ * own exam and this counted by how much. Topics can now share a week, so the
+ * programme always lands inside the window and this is normally 0.
+ *
+ * It is kept as a guard rather than deleted. The layout can only fit a course
+ * into the weeks that exist — it says nothing about whether those weeks are
+ * sane, and a student joining after the revision window has already opened
+ * still has nowhere to put the teaching. {@link crowdedWeeks} is the signal
+ * that replaced it for the ordinary "this course is very full" case.
  */
 export function overrunWeeks(bands: Band[], examDate: string): number {
   const teach = bands.filter((b) => b.kind === "teach" && b.weeks > 0);
@@ -207,9 +262,45 @@ export function overrunWeeks(bands: Band[], examDate: string): number {
   return weeksBetween(revisionStart, lastEnd);
 }
 
-/** Which band, if any, owns a given week. */
+/**
+ * How many weeks have to teach more than one topic.
+ *
+ * The honest replacement for the old overrun warning. A course that needs
+ * doubling-up is not broken — it is scheduled, and every topic is in there —
+ * but the weeks are full, and that is worth saying to somebody who can move the
+ * start date or hand a topic over as self-study.
+ */
+export function crowdedWeeks(bands: Band[]): number {
+  const perWeek = new Map<string, number>();
+  for (const b of bands) {
+    if (b.kind !== "teach" || b.weeks === 0) continue;
+    for (let w = b.startWeek; w <= b.endWeek; w = addWeeks(w, 1)) {
+      perWeek.set(w, (perWeek.get(w) ?? 0) + 1);
+    }
+  }
+  return [...perWeek.values()].filter((n) => n > 1).length;
+}
+
+/**
+ * Every band running in a given week, in spec order.
+ *
+ * Usually one. Two small neighbouring topics now share a week rather than
+ * taking one each, so callers have to be able to show both — see
+ * {@link distributeWeeks}.
+ */
+export function bandsForWeek(bands: Band[], weekStart: string): Band[] {
+  return bands.filter((b) => b.weeks > 0 && weekStart >= b.startWeek && weekStart <= b.endWeek);
+}
+
+/**
+ * The first band running in a given week.
+ *
+ * Only for callers that genuinely want one — "which topic does this week lead
+ * with". Anything showing the week's work wants {@link bandsForWeek}, or it
+ * will quietly drop the topic sharing it.
+ */
 export function bandForWeek(bands: Band[], weekStart: string): Band | undefined {
-  return bands.find((b) => b.weeks > 0 && weekStart >= b.startWeek && weekStart <= b.endWeek);
+  return bandsForWeek(bands, weekStart)[0];
 }
 
 /**
@@ -330,9 +421,6 @@ export function selectWeekPoints(input: WeekInput): WeekPoint[] {
     }
   }
 
-  const current = bandForWeek(input.bands, input.weekStart);
-  const currentPoints = current ? (input.pointsByTopic.get(current.topicId) ?? []) : [];
-
   /**
    * This week's share of the spine, in WORK rather than in rows.
    *
@@ -341,13 +429,22 @@ export function selectWeekPoints(input: WeekInput): WeekPoint[] {
    * how big a week is. Taking `ceil(points / weeks)` rows instead meant a week
    * of three heavy practicals and a week of three definitions were the same
    * week to the planner.
+   *
+   * Summed over every band running this week: two small topics can now share
+   * one, and reading only the first would budget for half the week's work and
+   * leave the second topic permanently owed.
    */
-  const share = current
-    ? weekSliceOf(current, input.weekStart, currentPoints, weightOf).reduce(
-        (s, p) => s + weightOf(p),
-        0,
-      )
-    : 0;
+  const share = bandsForWeek(input.bands, input.weekStart).reduce(
+    (total, band) =>
+      total +
+      weekSliceOf(
+        band,
+        input.weekStart,
+        input.pointsByTopic.get(band.topicId) ?? [],
+        weightOf,
+      ).reduce((s, p) => s + weightOf(p), 0),
+    0,
+  );
 
   // Fill up to that budget, and never leave the spine empty: one point always
   // goes in, even when it is heavier on its own than the whole week's share.
@@ -364,6 +461,14 @@ export function selectWeekPoints(input: WeekInput): WeekPoint[] {
     }
   }
 
+  // Which points this week is actually for, across every topic running in it.
+  // Anything else in the spine is owed from an earlier week.
+  const dueThisWeek = new Set(
+    bandsForWeek(input.bands, input.weekStart).flatMap((band) =>
+      (input.pointsByTopic.get(band.topicId) ?? []).map((p) => p.id),
+    ),
+  );
+
   for (const id of spine) {
     taken.add(id);
     picked.push({
@@ -374,10 +479,7 @@ export function selectWeekPoints(input: WeekInput): WeekPoint[] {
       // never opened the app was told their first week was "coming back round".
       lane: (input.confidence.get(id) ?? 0) < NEVER_TAUGHT_BELOW ? "core" : "focus",
       // Owed from an earlier week rather than starting here.
-      origin:
-        current && (input.pointsByTopic.get(current.topicId) ?? []).some((p) => p.id === id)
-          ? "planned"
-          : "carried_over",
+      origin: dueThisWeek.has(id) ? "planned" : "carried_over",
       sort_order: picked.length,
     });
   }
@@ -504,9 +606,15 @@ export function focusLoadFor(params: {
   topicWeights: number[];
   bands: Band[];
 }): FocusLoad {
-  const weeks = params.bands
-    .filter((b) => b.kind === "teach" && b.weeks > 0)
-    .reduce((s, b) => s + b.weeks, 0);
+  // DISTINCT weeks, not the sum of each band's length. Two topics sharing a
+  // week made that sum bigger than the year, which shrank the spine's apparent
+  // weekly pace and reported a student who had rated nothing as overloaded.
+  const covered = new Set<string>();
+  for (const b of params.bands) {
+    if (b.kind !== "teach" || b.weeks === 0) continue;
+    for (let w = b.startWeek; w <= b.endWeek; w = addWeeks(w, 1)) covered.add(w);
+  }
+  const weeks = covered.size;
   const work = params.topicWeights.reduce((s, w) => s + Math.max(w, 1), 0);
   const spine = weeks > 0 ? work / weeks : 0;
   return {

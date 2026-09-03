@@ -28,7 +28,7 @@ import {
   StatTile,
 } from "@/components/app/Shared";
 import { Mascot } from "@/components/app/Doodles";
-import { SUBJECT_LABEL, useEnrolments, useViewer } from "@/lib/session";
+import { BOARD_LABEL, LEVEL_LABEL, SUBJECT_LABEL, useEnrolments, useViewer } from "@/lib/session";
 import { subjectIcon, subjectMascot, subjectTint } from "@/lib/subject";
 import { masteryFromRow, type ScheduleRow } from "@/lib/fsrs";
 import { groupByTopic, useCurriculum, usePointConfidence, useSchedule } from "@/lib/study";
@@ -99,6 +99,15 @@ function Dashboard() {
 
   const openHomework = (assignmentsQ.data ?? []).filter((a) => a.status !== "marked");
 
+  // Level is shared across the course; the board is per subject, so a card can
+  // only name its own syllabus by reading that subject's enrolment.
+  const boardBySubject = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const e of enrolmentsQ.data ?? []) m.set(e.subject, BOARD_LABEL[e.board]);
+    return m;
+  }, [enrolmentsQ.data]);
+  const levelLabel = viewer.profile?.level ? LEVEL_LABEL[viewer.profile.level] : null;
+
   const bySubject = useMemo(() => {
     const { byTopic } = groupByTopic(topics, specPoints);
     const groups = new Map<string, { topics: typeof topics; points: number; mastery: number }>();
@@ -144,8 +153,17 @@ function Dashboard() {
           search={{ tab: "week" }}
           className="btn-hero inline-flex h-11 items-center gap-2 rounded-xl px-5 text-sm"
         >
+          <CalendarDays className="size-4" aria-hidden />
           See this week
           <ArrowRight className="size-4" aria-hidden />
+        </Link>
+        <Link
+          to="/planner"
+          search={{ tab: "plan" }}
+          className="btn-soft inline-flex h-11 items-center gap-2 rounded-xl px-5 text-sm"
+        >
+          <Sparkle className="size-4" aria-hidden />
+          Open my plan
         </Link>
       </PageHeader>
 
@@ -273,6 +291,9 @@ function Dashboard() {
                         <p className="font-display text-lg font-extrabold">
                           {SUBJECT_LABEL[s.subject as keyof typeof SUBJECT_LABEL]}
                         </p>
+                        <p className="text-xs font-bold text-[color:var(--tint)]">
+                          {[levelLabel, boardBySubject.get(s.subject)].filter(Boolean).join(" · ")}
+                        </p>
                         <p className="text-xs font-semibold text-muted-foreground">
                           {s.topicCount} topics · {s.points} spec points
                         </p>
@@ -297,25 +318,6 @@ function Dashboard() {
           </div>
         </section>
       )}
-
-      <div className="flex flex-wrap gap-3">
-        <Link
-          to="/planner"
-          search={{ tab: "week" }}
-          className="btn-hero inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm"
-        >
-          <CalendarDays className="size-4" aria-hidden />
-          See this week
-        </Link>
-        <Link
-          to="/planner"
-          search={{ tab: "plan" }}
-          className="btn-soft inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm"
-        >
-          <Sparkle className="size-4" aria-hidden />
-          Open my plan
-        </Link>
-      </div>
     </div>
   );
 }

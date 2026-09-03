@@ -13,6 +13,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { deserializeCard, masteryFromRow, type ScheduleRow } from "@/lib/fsrs";
 import {
   computePacing,
+  crowdedWeeks,
   diffPacing,
   NEVER_TAUGHT_BELOW,
   overrunWeeks,
@@ -56,6 +57,13 @@ export type Roadmap = {
   focusBands: FocusBand[];
   /** Weeks by which teaching overruns the revision window. 0 means it fits. */
   overrun: number;
+  /**
+   * How many weeks have to teach more than one topic.
+   *
+   * Since topics can share a week the programme always fits, so `overrun` is
+   * normally 0 and this is the signal that the year is tight.
+   */
+  crowded: number;
   /**
    * How the revision lane's weekly load compares with the teaching spine's.
    *
@@ -232,6 +240,7 @@ export function useRoadmap(args: {
           settledTopics,
           focusBands,
           overrun: overrunWeeks(live, args.examDate!),
+          crowded: crowdedWeeks(live),
           focusLoad,
         };
       }
@@ -247,6 +256,7 @@ export function useRoadmap(args: {
         settledTopics,
         focusBands,
         overrun: overrunWeeks(live, args.examDate!),
+        crowded: crowdedWeeks(live),
         focusLoad,
       };
     },
