@@ -14,7 +14,8 @@
  *
  *   bun run scripts/spec-weights/compare-split.ts
  */
-import { computePacing, splitAcrossWeeks, weightOf, type Band } from "@/lib/pacing";
+import { computePacing, crowdedWeeks, splitAcrossWeeks, weightOf, type Band } from "@/lib/pacing";
+import { addWeeks } from "@/lib/week";
 import type { Database } from "@/integrations/supabase/types";
 
 import topicsJson from "../../supabase/seed/topics.json";
@@ -48,18 +49,28 @@ for (const p of points) {
 }
 for (const list of byTopic.values()) list.sort((a, b) => a.sort_order - b.sort_order);
 
-/** The real work in every teaching week of a programme. */
+/**
+ * The real work in every teaching week of a programme.
+ *
+ * Summed BY WEEK, not by band: two small topics can share a week, and counting
+ * each band's chunk separately would report that week twice at half its size.
+ */
 function weeklyWork(bands: Band[], weighted: boolean): number[] {
-  const out: number[] = [];
+  const byWeek = new Map<string, number>();
   for (const band of bands) {
     if (band.kind !== "teach" || band.weeks === 0) continue;
     const pts = byTopic.get(band.topicId) ?? [];
     // BEFORE cut by count (every point one unit); AFTER cut by work.
     const chunks = splitAcrossWeeks(pts, band.weeks, weighted ? weightOf : () => 1);
-    // Measured by real weight either way — the question is what the student got.
-    for (const c of chunks) out.push(c.reduce((s, p) => s + weightOf(p), 0));
+    let week = band.startWeek;
+    for (const c of chunks) {
+      // Measured by real weight either way — what matters is what the student got.
+      const work = c.reduce((s, p) => s + weightOf(p), 0);
+      byWeek.set(week, (byWeek.get(week) ?? 0) + work);
+      week = addWeeks(week, 1);
+    }
   }
-  return out;
+  return [...byWeek.values()];
 }
 
 function run(syllabus: string, weighted: boolean) {
@@ -86,6 +97,7 @@ function run(syllabus: string, weighted: boolean) {
   const teach = bands.filter((b) => b.kind === "teach" && b.weeks > 0);
   const single = teach.filter((b) => b.weeks === 1).length;
   return {
+    crowded: crowdedWeeks(bands),
     weeks: work.length,
     empty: work.filter((w) => w === 0).length,
     lo,
@@ -101,7 +113,7 @@ const num = (n: number, d = 1) => n.toFixed(d).padStart(6);
 
 console.log(
   `${pad("course", 8)} ${pad("pts", 5)} ${pad("before", 8)} ${pad("after", 8)}  ` +
-    `topics  1-week-bands`,
+    `topics  shared-weeks`,
 );
 let improved = 0;
 const names = [...bySyllabus.keys()].sort();
@@ -114,10 +126,9 @@ for (const syllabus of names) {
   );
   if (after.ratio < before.ratio) improved++;
   const note = before.empty || after.empty ? ` (empty ${before.empty}->${after.empty})` : "";
-  const stuck = after.single === after.topics ? "  ALL — no room to cut" : "";
   console.log(
     `${pad(syllabus, 8)} ${pad(String(n), 5)} ${num(before.ratio)}x ${num(after.ratio)}x  ` +
-      `${String(after.topics).padStart(6)}  ${String(after.single).padStart(11)}${stuck}${note}`,
+      `${String(after.topics).padStart(6)}  ${String(after.crowded).padStart(12)}${note}`,
   );
 }
 console.log(`\n${improved}/${names.length} courses levelled out.`);

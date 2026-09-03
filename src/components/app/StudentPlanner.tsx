@@ -38,7 +38,7 @@ import { FocusKey, FocusTopicRow, FocusedTopicsLabel } from "@/components/app/Fo
 import { EmptyState, ErrorNote, Meter, MasteryPill, Spinner } from "@/components/app/Shared";
 import { BANDS, bandOf, useBoardState, type BandId } from "@/lib/bands";
 import { masteryFromRow, type ScheduleRow } from "@/lib/fsrs";
-import { bandForWeek, weekSliceOf, weeksOf, weightOf, type FocusBand } from "@/lib/pacing";
+import { bandsForWeek, weekSliceOf, weeksOf, weightOf, type FocusBand } from "@/lib/pacing";
 import {
   SETTLED_THRESHOLD,
   useAcknowledgePlan,
@@ -58,7 +58,7 @@ import {
   type SpecPoint,
   type Topic,
 } from "@/lib/study";
-import { formatWeek, weekStartKey } from "@/lib/week";
+import { formatWeek, formatWeekShort, weekStartKey, weeksApart } from "@/lib/week";
 import { cn } from "@/lib/utils";
 
 /**
@@ -295,8 +295,20 @@ function ThisWeekTab({
     return { core: group("core"), focus: group("focus") };
   }, [planQ.data, topicById]);
 
-  /** The spine band this week sits in — the core topic, points outstanding or not. */
-  const band = roadmap ? bandForWeek(roadmap.bands, thisWeek) : undefined;
+  /**
+   * The spine band this week leads with — the core topic, points outstanding or
+   * not.
+   *
+   * A week can run two topics when a pair of small neighbours share it, so this
+   * picks the one that actually has work in the plan. Taking the first band
+   * regardless meant a week whose leading topic was already settled announced
+   * "no core topic scheduled" while the topic sharing it sat underneath.
+   */
+  const weekBands = roadmap ? bandsForWeek(roadmap.bands, thisWeek) : [];
+  const band =
+    weekBands.find(
+      (b) => b.kind === "teach" && lanes.core.some((g) => g.topic?.id === b.topicId),
+    ) ?? weekBands[0];
   const bandTopicId = band?.kind === "teach" ? band.topicId : undefined;
   const bandGroup = lanes.core.find((g) => g.topic?.id === bandTopicId);
   // Core points from OTHER topics get their own block rather than being listed
@@ -560,6 +572,187 @@ function SpecPointList({ points }: { points: PlanPointView[] }) {
  * ROW, not per topic: a topic spans several weeks and each teaches a different
  * slice, so opening Topic 3 in September must not also open its October row.
  */
+/**
+ * One topic's move, as a bar either side of a centre line.
+ *
+ * "7 wks earlier" is accurate and takes a second to read; seventeen of them
+ * take seventeen seconds and none of them compare to each other. A bar off to
+ * the left of a shared centre line says *earlier* and *by more than the row
+ * above* in one look, which is the only thing this column is for.
+ *
+ * All rows share `scale`, the widest move on the list, so the lengths mean
+ * something relative to each other rather than each filling its own cell.
+ */
+function ShiftBar({ weeks, scale }: { weeks: number; scale: number }) {
+  const earlier = weeks < 0;
+  const size = Math.abs(weeks);
+  // Never zero-width: a one-week move is still a move, and an invisible bar
+  // reads as "nothing happened".
+  const pct = Math.max(8, (size / scale) * 100);
+  const label = `${size} ${size === 1 ? "week" : "weeks"} ${earlier ? "earlier" : "later"}`;
+
+  return (
+    <span className="flex items-center gap-1.5" title={label}>
+      <span className="relative h-3 flex-1" aria-hidden>
+        {/* The centre line is the old date; the bar is the distance travelled. */}
+        <span className="absolute left-1/2 top-0 h-full w-px -translate-x-1/2 bg-[color:var(--border)]" />
+        <span
+          className={cn(
+            "absolute top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-[color:var(--tint)]",
+            earlier ? "right-1/2" : "left-1/2",
+          )}
+          style={{ width: `${pct / 2}%` }}
+        />
+      </span>
+      <span className="w-8 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground">
+        {size}w
+      </span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
+/**
+ * What moved, when the live plan no longer matches the one the student agreed
+ * to.
+ *
+ * **Collapsed to one sentence by default.** The student has exactly one
+ * decision to make here — accept the new plan or go and look at it — and every
+ * row of detail put in front of that decision is a row that delays it. This was
+ * a bulleted list of seventeen sentences, then a seventeen-row table, and both
+ * made a routine re-pacing look like an incident report.
+ *
+ * The count and "nothing has been dropped" are the whole message: the plan
+ * moved, and moving is not losing. Anyone who wants the rows can open them, and
+ * that is a table, because seventeen date changes are seventeen date changes.
+ */
+function PlanShifted({
+  moved,
+  pending,
+  onAccept,
+}: {
+  moved: { title: string; from: string; to: string }[];
+  pending: boolean;
+  onAccept: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const earlier = moved.filter((m) => m.to < m.from).length;
+  const later = moved.length - earlier;
+  // One scale for the whole table, so bar lengths are comparable row to row.
+  const widest = Math.max(1, ...moved.map((m) => Math.abs(weeksApart(m.from, m.to))));
+
+  return (
+    <div className="tint-amber pop-card pop-card-flat p-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="min-w-0">
+          <p className="font-display flex items-center gap-2 text-base font-extrabold text-[color:var(--tint)]">
+            <CalendarClock className="size-4" aria-hidden />
+            Your plan has shifted
+          </p>
+          <p className="mt-0.5 text-[13px] leading-relaxed text-muted-foreground">
+            <span className="font-semibold text-foreground">
+              {moved.length} {moved.length === 1 ? "topic" : "topics"}
+            </span>{" "}
+            moved to a different week. Nothing has been dropped.
+          </p>
+        </div>
+        <button
+          type="button"
+          disabled={pending}
+          onClick={onAccept}
+          // Primary blue, not the card's amber: white on amber does not carry
+          // enough contrast, and the action is the app's, not the warning's.
+          className="tint-primary btn-solid shrink-0 rounded-xl px-4 py-2.5 text-xs disabled:opacity-60"
+        >
+          {pending ? "Updating…" : "Got it, update my plan"}
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+      >
+        <ChevronDown
+          className={cn("size-3.5 transition-transform", open && "rotate-180")}
+          aria-hidden
+        />
+        {open ? "Hide what changed" : "See what changed"}
+      </button>
+
+      {open ? (
+        <div className="mt-2">
+          <p className="mb-1.5 text-[11px] text-muted-foreground">
+            {earlier > 0 && later > 0
+              ? `${earlier} moved earlier, ${later} moved later.`
+              : earlier > 0
+                ? "All of them moved earlier."
+                : "All of them moved later."}
+          </p>
+          {/* No min-width: on a phone the columns have to fit, not scroll. A
+              table you have to drag sideways to read the dates in is a list of
+              topic names, which is the half nobody needed. */}
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                <th scope="col" className="pb-1.5 pr-3 text-left font-semibold">
+                  Topic
+                </th>
+                {/* The old date is the first thing to go when space is tight —
+                    "6 wks earlier" already says which way it moved. */}
+                <th
+                  scope="col"
+                  className="hidden px-2 pb-1.5 text-right font-semibold sm:table-cell"
+                >
+                  Was
+                </th>
+                <th scope="col" className="px-2 pb-1.5 text-right font-semibold">
+                  Now
+                </th>
+                {/* The two words ARE the legend: left of the centre line is
+                    earlier, right is later. Without them a diverging bar is a
+                    puzzle; with them it needs no explaining at all. */}
+                <th scope="col" className="w-[7.5rem] pb-1.5 pl-3 font-semibold sm:w-[9rem]">
+                  <span className="flex items-center justify-between">
+                    <span>Earlier</span>
+                    <span>Later</span>
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="align-baseline">
+              {moved.map((m) => {
+                const weeks = weeksApart(m.from, m.to);
+                return (
+                  <tr key={m.title} className="border-t border-[color:var(--border)]/60">
+                    <th
+                      scope="row"
+                      className="max-w-[9rem] truncate py-1.5 pr-3 text-left text-[12px] font-medium sm:max-w-[18rem]"
+                      title={m.title}
+                    >
+                      {m.title}
+                    </th>
+                    <td className="numeral hidden px-2 py-1.5 text-right tabular-nums text-muted-foreground/70 line-through sm:table-cell">
+                      {formatWeekShort(m.from)}
+                    </td>
+                    <td className="numeral px-2 py-1.5 text-right font-semibold tabular-nums">
+                      {formatWeekShort(m.to)}
+                    </td>
+                    <td className="py-1.5 pl-3">
+                      <ShiftBar weeks={weeks} scale={widest} />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function FullPlanTab({
   enrolment,
   base,
@@ -669,12 +862,24 @@ function FullPlanTab({
             This course doesn&apos;t fit before the exam
           </p>
           <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
-            {topics.length} topics need at least a week each, which is {roadmap.overrun} week
-            {roadmap.overrun === 1 ? "" : "s"} more than there is between now and the revision
-            run-up. The later topics are scheduled past that point. Ali will need to double up some
-            weeks, start earlier, or set some topics as self-study.
+            The teaching runs {roadmap.overrun} week{roadmap.overrun === 1 ? "" : "s"} past the
+            start of the revision run-up. Ali will need to start earlier, move the exam date, or set
+            some topics as self-study.
           </p>
         </div>
+      ) : roadmap.crowded > 0 ? (
+        // A quiet line, not a second amber card. This is a standing fact about
+        // the course rather than something to act on, and stacking it above the
+        // "your plan has shifted" card left two warnings competing for the one
+        // decision the student actually has to make.
+        <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+          <CalendarClock className="mt-px size-3.5 shrink-0" aria-hidden />
+          <span>
+            <span className="font-semibold text-foreground">It&apos;s a full year.</span>{" "}
+            {topics.length} topics fit before the revision run-up, so {roadmap.crowded} week
+            {roadmap.crowded === 1 ? " covers" : "s cover"} two topics. Nothing runs past the exam.
+          </span>
+        </p>
       ) : null}
 
       {roadmap.focusLoad.overloaded ? (
@@ -693,37 +898,16 @@ function FullPlanTab({
       ) : null}
 
       {roadmap.needsAck ? (
-        <div className="tint-amber pop-card pop-card-flat p-4">
-          <p className="font-display flex items-center gap-2 text-base font-extrabold text-[color:var(--tint)]">
-            <AlertTriangle className="size-4" aria-hidden />
-            Your plan has shifted
-          </p>
-          <ul className="mt-2 space-y-0.5 text-xs font-medium leading-relaxed text-muted-foreground">
-            {roadmap.diff.moved.slice(0, 4).map((m) => (
-              <li key={m.title}>
-                {m.title} — now starts {formatWeek(m.to)} (was {formatWeek(m.from)})
-              </li>
-            ))}
-            {roadmap.diff.moved.length > 4 ? (
-              <li>and {roadmap.diff.moved.length - 4} more</li>
-            ) : null}
-          </ul>
-          <button
-            type="button"
-            disabled={acknowledge.isPending}
-            onClick={() =>
-              acknowledge.mutate(roadmap.bands, {
-                onSuccess: () => toast.success("Plan updated"),
-                onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
-              })
-            }
-            // Primary blue, not the card's amber: white on amber does not carry
-            // enough contrast, and the action is the app's, not the warning's.
-            className="tint-primary btn-solid mt-3 rounded-xl px-4 py-2.5 text-xs disabled:opacity-60"
-          >
-            {acknowledge.isPending ? "Updating…" : "Got it, update my plan"}
-          </button>
-        </div>
+        <PlanShifted
+          moved={roadmap.diff.moved}
+          pending={acknowledge.isPending}
+          onAccept={() =>
+            acknowledge.mutate(roadmap.bands, {
+              onSuccess: () => toast.success("Plan updated"),
+              onError: (e) => toast.error(e instanceof Error ? e.message : "Failed"),
+            })
+          }
+        />
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11px] text-muted-foreground">
@@ -763,17 +947,24 @@ function FullPlanTab({
 
         <div className="max-h-[34rem] divide-y divide-border overflow-y-auto">
           {weeks.map((wk) => {
-            const core = bandForWeek(roadmap.bands, wk);
+            // Usually one topic, sometimes two: a pair of small neighbours
+            // share a week rather than taking one each, so the big topics can
+            // have the room. Each gets its own expandable entry in the cell.
+            const cores = bandsForWeek(roadmap.bands, wk).map((band) => {
+              const allPoints = byTopic.get(band.topicId) ?? [];
+              return {
+                band,
+                allPoints,
+                mastery: roadmap.masteryByTopic.get(band.topicId) ?? 0,
+                // This week's slice of the topic, not the whole topic: a band
+                // says "Topic 1, six weeks", and which three points belong to
+                // THIS week existed nowhere before.
+                slice: weekSliceOf(band, wk, allPoints, weightOf),
+                rowKey: `${band.topicId}@${wk}`,
+              };
+            });
             const focused = focusByWeek.get(wk) ?? [];
             const isNow = wk === thisWeek;
-            const mastery = core ? (roadmap.masteryByTopic.get(core.topicId) ?? 0) : 0;
-            const allPoints = core ? (byTopic.get(core.topicId) ?? []) : [];
-            // This week's slice of the topic, not the whole topic: a band says
-            // "Topic 1, six weeks", and which three points belong to THIS week
-            // existed nowhere before.
-            const slice = core ? weekSliceOf(core, wk, allPoints, weightOf) : [];
-            const rowKey = core ? `${core.topicId}@${wk}` : "";
-            const isOpen = open.has(rowKey);
             const note = notesQ.data?.get(wk);
             const done = note?.completed ?? false;
 
@@ -813,69 +1004,75 @@ function FullPlanTab({
                   </label>
                 </div>
 
-                <div className="min-w-0 border-l border-border px-3 py-2.5">
-                  {core ? (
-                    <button
-                      type="button"
-                      onClick={() => slice.length > 0 && toggle(rowKey)}
-                      aria-expanded={slice.length > 0 ? isOpen : undefined}
-                      className={cn(
-                        "-mx-1 w-full rounded-md px-1 text-left",
-                        slice.length > 0 ? "hover:bg-muted/50" : "cursor-default",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-[13px] font-medium leading-snug">
-                          {core.kind === "revision"
-                            ? "Revision — the run-up to the exam"
-                            : core.title}
-                        </span>
-                        <span className="flex shrink-0 items-center gap-1">
-                          {roadmap.settledTopics.has(core.topicId) ? (
-                            <CheckCircle2
-                              className="size-3.5 text-emerald-600 dark:text-emerald-400"
-                              aria-hidden
-                            />
-                          ) : null}
-                          {slice.length > 0 ? (
-                            <ChevronDown
-                              className={cn(
-                                "size-3.5 text-muted-foreground transition-transform",
-                                isOpen && "rotate-180",
-                              )}
-                              aria-hidden
-                            />
-                          ) : null}
-                        </span>
-                      </div>
-                      {core.kind === "teach" && allPoints.length > 0 ? (
-                        <span
-                          className="mt-1.5 flex items-center gap-2"
-                          title={`How well this is sticking: ${mastery}% — the same number on this topic's card in My topics`}
-                        >
-                          <Meter value={mastery} className="flex-1" />
-                          <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
-                            {mastery}%
-                          </span>
-                        </span>
-                      ) : null}
-                    </button>
-                  ) : (
+                <div className="min-w-0 space-y-2 border-l border-border px-3 py-2.5">
+                  {cores.length === 0 ? (
                     <span className="text-[12px] text-muted-foreground/70">—</span>
-                  )}
-
-                  {isOpen && slice.length > 0 ? (
-                    <ul className="mt-2 space-y-0.5">
-                      {slice.map((sp) => (
-                        <li
-                          key={sp.id}
-                          className="text-[11px] leading-relaxed text-muted-foreground"
-                        >
-                          <span className="font-mono">{sp.code}</span> {sp.title}
-                        </li>
-                      ))}
-                    </ul>
                   ) : null}
+                  {cores.map(({ band, allPoints, mastery, slice, rowKey }) => {
+                    const isOpen = open.has(rowKey);
+                    return (
+                      <div key={rowKey}>
+                        <button
+                          type="button"
+                          onClick={() => slice.length > 0 && toggle(rowKey)}
+                          aria-expanded={slice.length > 0 ? isOpen : undefined}
+                          className={cn(
+                            "-mx-1 w-full rounded-md px-1 text-left",
+                            slice.length > 0 ? "hover:bg-muted/50" : "cursor-default",
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-[13px] font-medium leading-snug">
+                              {band.kind === "revision"
+                                ? "Revision — the run-up to the exam"
+                                : band.title}
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1">
+                              {roadmap.settledTopics.has(band.topicId) ? (
+                                <CheckCircle2
+                                  className="size-3.5 text-emerald-600 dark:text-emerald-400"
+                                  aria-hidden
+                                />
+                              ) : null}
+                              {slice.length > 0 ? (
+                                <ChevronDown
+                                  className={cn(
+                                    "size-3.5 text-muted-foreground transition-transform",
+                                    isOpen && "rotate-180",
+                                  )}
+                                  aria-hidden
+                                />
+                              ) : null}
+                            </span>
+                          </div>
+                          {band.kind === "teach" && allPoints.length > 0 ? (
+                            <span
+                              className="mt-1.5 flex items-center gap-2"
+                              title={`How well this is sticking: ${mastery}% — the same number on this topic's card in My topics`}
+                            >
+                              <Meter value={mastery} className="flex-1" />
+                              <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
+                                {mastery}%
+                              </span>
+                            </span>
+                          ) : null}
+                        </button>
+
+                        {isOpen && slice.length > 0 ? (
+                          <ul className="mt-2 space-y-0.5">
+                            {slice.map((sp) => (
+                              <li
+                                key={sp.id}
+                                className="text-[11px] leading-relaxed text-muted-foreground"
+                              >
+                                <span className="font-mono">{sp.code}</span> {sp.title}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </div>
+                    );
+                  })}
 
                   {/* Stacked under core on narrow screens, where there is no
                       room for the other three columns. */}
