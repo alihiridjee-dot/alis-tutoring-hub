@@ -129,6 +129,8 @@ export function ConfidenceBoard({
   };
 
   const cardFor = (topic: Topic, band: BandId) => (
+    // The band's tint rides on the card itself, so a card keeps its colour while
+    // it is being dragged between columns.
     <TopicCard
       key={topic.id}
       topic={topic}
@@ -163,19 +165,21 @@ export function ConfidenceBoard({
           onDragLeave={() => setOver((b) => (b === "new" ? null : b))}
           onDrop={() => drop("new")}
           className={cn(
-            "rounded-2xl border p-3 transition-colors",
-            over === "new" ? "border-primary bg-primary/5" : "border-border/70 bg-muted/30",
+            "tint-slate rounded-2xl border-2 border-dashed p-3.5 transition-colors",
+            over === "new"
+              ? "border-[color:var(--primary)] bg-[color:color-mix(in_oklab,var(--primary)_8%,transparent)]"
+              : "border-[color:color-mix(in_oklab,var(--foreground)_14%,transparent)] bg-[color:color-mix(in_oklab,var(--foreground)_3%,transparent)]",
           )}
         >
-          <div className="mb-2 flex flex-wrap items-center gap-2 px-1">
-            <Layers className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <h3 className="font-display text-sm font-bold tracking-tight">{UNSORTED.label}</h3>
-            <span className="text-xs text-muted-foreground">
+          <div className="mb-3 flex flex-wrap items-center gap-2 px-1">
+            <span className="icon-tile size-7">
+              <Layers className="size-3.5" aria-hidden />
+            </span>
+            <h3 className="font-display text-base font-extrabold">{UNSORTED.label}</h3>
+            <span className="text-xs font-medium text-muted-foreground">
               Drag each into a column below, or open one to move it
             </span>
-            <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-              {unsorted.length}
-            </span>
+            <span className="chip ml-auto">{unsorted.length}</span>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {unsorted.map((t) => cardFor(t, "new"))}
@@ -197,25 +201,27 @@ export function ConfidenceBoard({
               onDragLeave={() => setOver((b) => (b === band.id ? null : b))}
               onDrop={() => drop(band.id)}
               className={cn(
-                "min-h-40 rounded-2xl border p-3 transition-colors",
+                band.tint,
+                "min-h-44 rounded-2xl border-2 p-3.5 transition-all",
                 over === band.id
-                  ? "border-primary bg-primary/5 ring-2 ring-primary/20"
-                  : "border-border/70 bg-muted/20",
+                  ? "scale-[1.01] border-[color:var(--tint)] bg-[color:color-mix(in_oklab,var(--tint)_10%,transparent)]"
+                  : "border-[color:color-mix(in_oklab,var(--tint)_25%,transparent)] bg-[color:color-mix(in_oklab,var(--tint)_5%,transparent)]",
               )}
             >
               <div className="mb-3 flex items-center gap-2 px-1">
-                <span className={cn("size-2.5 shrink-0 rounded-full", band.dot)} aria-hidden />
-                <h3 className={cn("font-display text-sm font-bold tracking-tight", band.accent)}>
+                <span
+                  className="size-3 shrink-0 rounded-full bg-[color:var(--tint)]"
+                  aria-hidden
+                />
+                <h3 className="font-display text-base font-extrabold text-[color:var(--tint)]">
                   {band.label}
                 </h3>
-                <span className="ml-auto text-xs tabular-nums text-muted-foreground">
-                  {cards.length}
-                </span>
+                <span className="chip ml-auto">{cards.length}</span>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2.5">
                 {cards.map((t) => cardFor(t, band.id))}
                 {cards.length === 0 ? (
-                  <p className="px-1 py-5 text-center text-xs text-muted-foreground/70">
+                  <p className="rounded-xl border-2 border-dashed border-[color:color-mix(in_oklab,var(--tint)_28%,transparent)] px-1 py-6 text-center text-xs font-bold text-[color:color-mix(in_oklab,var(--tint)_75%,transparent)]">
                     Drop topics here
                   </p>
                 ) : null}
@@ -225,10 +231,13 @@ export function ConfidenceBoard({
         })}
       </div>
 
-      <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-        <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        The column is what you said; the ring is how well it is actually sticking. Come back and
-        re-sort whenever — it reshapes your plan straight away.
+      <p className="surface-soft flex items-start gap-2.5 p-3 text-xs font-medium leading-relaxed text-muted-foreground">
+        <Info className="mt-0.5 size-4 shrink-0 text-[color:var(--tint)]" aria-hidden />
+        <span>
+          The <b className="font-bold text-foreground">column</b> is what you said; the{" "}
+          <b className="font-bold text-foreground">ring</b> is how well it is actually sticking.
+          Come back and re-sort whenever — it reshapes your plan straight away.
+        </span>
       </p>
 
       <AnimatePresence>
@@ -277,6 +286,7 @@ function TopicCard({
   mode: "seed" | "live";
 }) {
   const { eyebrow, name } = splitTitle(topic.title);
+  const tint = bandById(band).tint;
 
   // The rating the topic's own band implies, used as each point's confidence
   // when the student has not rated that point individually — which is exactly
@@ -311,20 +321,26 @@ function TopicCard({
       }}
       onDragEnd={onDragEnd}
       className={cn(
-        "group surface-soft flex cursor-grab items-center gap-2.5 rounded-xl border px-3 py-2.5 transition select-none active:cursor-grabbing",
-        dragging ? "border-primary opacity-40" : "border-transparent hover:border-primary/40",
+        tint,
+        // A real card, not a tinted strip: this is the object the whole screen
+        // is about, and it has to look worth picking up.
+        "group flex cursor-grab items-center gap-2.5 rounded-xl border-[1.5px] border-[color:color-mix(in_oklab,var(--tint)_22%,var(--edge))] bg-card px-3 py-2.5 shadow-[0_2px_0_0_color-mix(in_oklab,var(--tint)_20%,transparent)] transition select-none hover:-translate-y-0.5 hover:border-[color:color-mix(in_oklab,var(--tint)_45%,transparent)] hover:shadow-[0_4px_0_0_color-mix(in_oklab,var(--tint)_26%,transparent)] active:translate-y-0 active:cursor-grabbing",
+        dragging && "rotate-1 opacity-40",
       )}
     >
-      <GripVertical className="size-4 shrink-0 text-muted-foreground/50" aria-hidden />
+      <GripVertical
+        className="size-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-[color:var(--tint)]"
+        aria-hidden
+      />
       <ConfidenceRing value={mastery} rated={rated} />
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
         {eyebrow ? (
-          <span className="block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+          <span className="font-display block text-[10px] font-extrabold uppercase tracking-[0.12em] text-[color:var(--tint)]">
             {eyebrow}
           </span>
         ) : null}
-        <span className="block text-sm font-medium leading-snug">{name}</span>
-        <span className="mt-0.5 block text-[11px] text-muted-foreground">
+        <span className="block text-sm font-bold leading-snug">{name}</span>
+        <span className="mt-0.5 block text-[11px] font-medium text-muted-foreground">
           {showSubject ? `${SUBJECT_LABEL[topic.subject]} · ` : ""}
           {points.length} point{points.length === 1 ? "" : "s"}
         </span>
@@ -334,7 +350,7 @@ function TopicCard({
         onClick={onOpen}
         aria-label={`Open ${topic.title}`}
         title="Rate specification points"
-        className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-border/70 text-muted-foreground opacity-60 transition hover:bg-card hover:text-foreground group-hover:opacity-100"
+        className="icon-tile flex size-8 shrink-0 items-center justify-center opacity-60 transition group-hover:opacity-100"
       >
         <SlidersHorizontal className="size-4" aria-hidden />
       </button>
@@ -347,8 +363,8 @@ function TopicCard({
  * unrated topic never pretends to a score of zero.
  */
 function ConfidenceRing({ value, rated }: { value: number; rated: boolean }) {
-  const size = 34;
-  const stroke = 3.5;
+  const size = 36;
+  const stroke = 4.5;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const color = rated ? confidenceColor(value) : "#cbd5e1"; // slate-300 when unrated
@@ -379,7 +395,7 @@ function ConfidenceRing({ value, rated }: { value: number; rated: boolean }) {
         />
       </svg>
       <span
-        className="absolute inset-0 flex items-center justify-center text-[10px] font-bold tabular-nums"
+        className="numeral absolute inset-0 flex items-center justify-center text-[10px]"
         style={{ color: rated ? color : "#94a3b8" }}
       >
         {rated ? value : "–"}

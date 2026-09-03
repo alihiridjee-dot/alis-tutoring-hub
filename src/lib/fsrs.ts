@@ -370,12 +370,20 @@ export const BAND_LABEL: Record<MasteryBand, string> = {
   secure: "Secure",
 };
 
-/** Tailwind classes per band, so every surface colours mastery identically. */
+/**
+ * The tint per band, so every surface colours mastery identically.
+ *
+ * These are `tint-*` classes, not `bg-*` utilities. The design system's `.chip`
+ * / `.pop-card` / `.icon-tile` rules are unlayered CSS and therefore beat a
+ * Tailwind background utility placed on the same element — which is how the old
+ * `bg-rose-100` values silently did nothing. Setting `--tint` instead means the
+ * band colours the pill's fill, border AND text through one class.
+ */
 export const BAND_CLASS: Record<MasteryBand, string> = {
-  unseen: "bg-muted text-muted-foreground",
-  shaky: "bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200",
-  building: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  secure: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+  unseen: "tint-slate",
+  shaky: "tint-rose",
+  building: "tint-amber",
+  secure: "tint-emerald",
 };
 
 export { Rating, State };

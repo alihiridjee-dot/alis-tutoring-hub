@@ -13,6 +13,8 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "sonner";
 
+import { GraduationCap } from "lucide-react";
+
 import { EmptyState, ErrorNote, PageHeader, Spinner } from "@/components/app/Shared";
 import { useViewer } from "@/lib/session";
 import { useMarkingQueue, useMarkSubmission } from "@/lib/homework";
@@ -39,12 +41,21 @@ function MarkingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Tutor" title="Marking" />
+      <PageHeader
+        eyebrow="Tutor"
+        title="Marking"
+        icon={GraduationCap}
+        lede="A score here advances every spec point the task was linked to."
+      >
+        {queue.length > 0 ? <span className="sticker">{queue.length} waiting</span> : null}
+      </PageHeader>
 
       {queue.length === 0 ? (
         <EmptyState
-          title="Nothing waiting"
-          body="Work handed in by students lands here, oldest first."
+          mascot="rocket"
+          mood="proud"
+          title="Queue's empty"
+          body="Work handed in by students lands here, oldest first. Nothing to do right now."
         />
       ) : (
         <ul className="space-y-3">
@@ -54,11 +65,13 @@ function MarkingPage() {
               setDrafts((d) => ({ ...d, [submission.id]: { ...draft, ...patch } }));
 
             return (
-              <li key={submission.id} className="premium-card space-y-3 rounded-2xl p-5">
-                <div className="flex flex-wrap items-start justify-between gap-2">
+              <li key={submission.id} className="pop-card space-y-4 p-5">
+                <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold">{resource?.title ?? "Homework"}</p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="font-display text-lg font-extrabold">
+                      {resource?.title ?? "Homework"}
+                    </p>
+                    <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
                       {student?.display_name || student?.email} · handed in{" "}
                       {relativeDay(submission.submitted_at)}
                     </p>
@@ -66,11 +79,11 @@ function MarkingPage() {
                 </div>
 
                 {submission.notes ? (
-                  <div className="surface-soft rounded-xl p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                      Their note
+                  <div className="surface-soft p-3.5">
+                    <p className="eyebrow">Their note</p>
+                    <p className="mt-2 whitespace-pre-wrap text-sm font-medium">
+                      {submission.notes}
                     </p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm">{submission.notes}</p>
                   </div>
                 ) : null}
 
@@ -80,19 +93,19 @@ function MarkingPage() {
                     onChange={(e) => set({ score: e.target.value })}
                     inputMode="numeric"
                     placeholder="Score %"
-                    className="premium-input h-10 rounded-xl px-3 text-sm"
+                    className="premium-input h-11 rounded-xl px-3 text-sm font-semibold"
                   />
                   <input
                     value={draft.grade}
                     onChange={(e) => set({ grade: e.target.value })}
                     placeholder="Grade"
-                    className="premium-input h-10 rounded-xl px-3 text-sm"
+                    className="premium-input h-11 rounded-xl px-3 text-sm font-semibold"
                   />
                   <input
                     value={draft.feedback}
                     onChange={(e) => set({ feedback: e.target.value })}
                     placeholder="Feedback"
-                    className="premium-input h-10 rounded-xl px-3 text-sm"
+                    className="premium-input h-11 rounded-xl px-3 text-sm font-medium"
                   />
                 </div>
 
@@ -130,7 +143,7 @@ function MarkingPage() {
                       },
                     );
                   }}
-                  className="btn-premium rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                  className="btn-hero rounded-xl px-5 py-2.5 text-sm disabled:opacity-50"
                 >
                   {marking === submission.id ? "Marking…" : "Mark and advance"}
                 </button>

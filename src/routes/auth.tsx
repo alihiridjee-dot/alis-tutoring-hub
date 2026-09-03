@@ -82,10 +82,10 @@ function AuthPage() {
 
   return (
     <AuthShell>
-      <h1 className="font-display mb-1.5 text-[1.75rem] font-bold leading-tight tracking-tight">
-        Welcome <span className="text-gradient">back</span>
+      <h1 className="font-display mb-1.5 text-3xl font-extrabold leading-tight">
+        Welcome <span className="marker">back</span>
       </h1>
-      <p className="mb-6 text-sm leading-relaxed text-muted-foreground">
+      <p className="mb-7 text-sm leading-relaxed text-muted-foreground">
         Log in to see your planner, homework and progress.
       </p>
 
@@ -117,7 +117,7 @@ function AuthPage() {
         <button
           type="submit"
           disabled={loading}
-          className="btn-premium h-12 w-full rounded-xl text-sm font-semibold"
+          className="btn-hero h-13 w-full rounded-xl text-base"
         >
           {loading ? "Please wait…" : "Log in"}
         </button>
@@ -125,13 +125,13 @@ function AuthPage() {
         <button
           type="button"
           onClick={handleReset}
-          className="w-full text-xs text-muted-foreground hover:text-primary"
+          className="w-full text-xs font-semibold text-muted-foreground hover:text-[color:var(--primary)]"
         >
           Forgot password?
         </button>
       </form>
 
-      <p className="mt-6 border-t border-border/70 pt-5 text-center text-xs text-muted-foreground">
+      <p className="mt-7 border-t-2 border-dashed border-[color:color-mix(in_oklab,var(--foreground)_12%,transparent)] pt-5 text-center text-xs font-medium text-muted-foreground">
         Accounts are set up by Ali. If you can&apos;t get in, get in touch directly.
       </p>
     </AuthShell>

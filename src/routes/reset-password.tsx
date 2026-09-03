@@ -49,10 +49,10 @@ function ResetPasswordPage() {
 
   return (
     <AuthShell>
-      <h1 className="font-display mb-1.5 text-2xl font-semibold tracking-tight">
-        Set a new password
+      <h1 className="font-display mb-1.5 text-3xl font-extrabold leading-tight">
+        Set a <span className="marker">new password</span>
       </h1>
-      <p className="mb-6 text-sm text-muted-foreground">
+      <p className="mb-7 text-sm leading-relaxed text-muted-foreground">
         {ready
           ? "Enter and confirm your new password below."
           : "Waiting for your recovery link… If nothing happens, request a new email."}
@@ -83,7 +83,7 @@ function ResetPasswordPage() {
         <button
           type="submit"
           disabled={loading || !ready}
-          className="btn-premium h-12 w-full rounded-xl text-sm font-semibold"
+          className="btn-hero h-13 w-full rounded-xl text-base"
         >
           {loading ? "Updating…" : "Update password"}
         </button>

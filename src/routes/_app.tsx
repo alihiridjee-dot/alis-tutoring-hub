@@ -20,6 +20,7 @@ import { Link, Outlet, createFileRoute, useLocation, useNavigate } from "@tansta
 
 import { AppNav } from "@/components/app/AppNav";
 import { Spinner } from "@/components/app/Shared";
+import { Mascot } from "@/components/app/Doodles";
 import { useViewer } from "@/lib/session";
 import { isSortDeferred } from "@/lib/sort-deferral";
 import { isSupabaseConfigured } from "@/integrations/supabase/env";
@@ -64,13 +65,17 @@ function AppLayout() {
   if (!configured) {
     return (
       <main className="page-aurora flex min-h-screen items-center justify-center px-4">
-        <div className="premium-card max-w-md rounded-2xl p-8 text-center">
-          <h1 className="font-display text-lg font-semibold">No database connected</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_PUBLISHABLE_KEY</code>, then
-            reload.
+        <div className="pop-card max-w-md p-8 text-center">
+          <Mascot name="flask" mood="wow" size={96} className="mx-auto mb-4" />
+          <h1 className="font-display text-xl font-extrabold">No database connected</h1>
+          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+            Set <code className="rounded bg-muted px-1 py-0.5 text-xs">VITE_SUPABASE_URL</code> and{" "}
+            <code className="rounded bg-muted px-1 py-0.5 text-xs">
+              VITE_SUPABASE_PUBLISHABLE_KEY
+            </code>
+            , then reload.
           </p>
-          <Link to="/" className="btn-soft mt-5 inline-flex rounded-xl px-4 py-2 text-sm">
+          <Link to="/" className="btn-soft mt-6 inline-flex rounded-xl px-5 py-2.5 text-sm">
             Back to home
           </Link>
         </div>
@@ -100,7 +105,8 @@ function AppLayout() {
   return (
     <div className="page-aurora min-h-screen">
       <AppNav />
-      <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10">
+      {/* The bottom padding clears the phone nav bar, which is fixed. */}
+      <main className="mx-auto w-full max-w-6xl px-4 pb-28 pt-7 sm:px-6 sm:pt-10 lg:pb-16">
         <Outlet />
       </main>
     </div>
