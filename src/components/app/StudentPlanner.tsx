@@ -58,6 +58,7 @@ import {
   type SpecPoint,
   type Topic,
 } from "@/lib/study";
+import { parseSpecStatement } from "@/lib/spec-text";
 import { formatWeek, formatWeekShort, weekStartKey, weeksApart } from "@/lib/week";
 import { cn } from "@/lib/utils";
 
@@ -537,8 +538,8 @@ function SpecPointList({ points }: { points: PlanPointView[] }) {
             <span className="numeral mt-0.5 shrink-0 rounded-md bg-[color:color-mix(in_oklab,var(--tint)_12%,transparent)] px-1.5 py-0.5 text-[10px] text-[color:var(--tint)]">
               {p.code}
             </span>
-            <p className="min-w-0 flex-1 text-sm font-medium leading-snug">
-              {p.title}
+            <div className="min-w-0 flex-1 text-sm leading-snug">
+              <SpecStatementText title={p.title} />
               {p.carried ? (
                 <span
                   className="ml-1.5 inline-flex h-5 items-center gap-1 rounded-md bg-muted px-1.5 align-middle text-[10px] font-bold text-muted-foreground"
@@ -547,7 +548,7 @@ function SpecPointList({ points }: { points: PlanPointView[] }) {
                   <RotateCcw className="size-2.5" aria-hidden /> Carried
                 </span>
               ) : null}
-            </p>
+            </div>
           </div>
         ))}
       </div>
@@ -572,6 +573,56 @@ function SpecPointList({ points }: { points: PlanPointView[] }) {
  * ROW, not per topic: a topic spans several weeks and each teaches a different
  * slice, so opening Topic 3 in September must not also open its October row.
  */
+/**
+ * A spec point's wording, with the structure the board wrote into it shown.
+ *
+ * Sub-items become real list items, cross-references drop to a quiet line of
+ * their own, and a sub-item we hold no text for is named rather than rendered
+ * as an empty bullet. Anything unrecognised renders as the plain sentence it
+ * always was — see {@link parseSpecStatement}.
+ */
+function SpecStatementText({ title, size = "sm" }: { title: string; size?: "sm" | "xs" }) {
+  const { lead, items, seeAlso, missing } = parseSpecStatement(title);
+  const small = size === "xs";
+
+  return (
+    <>
+      {lead ? <span className={small ? "" : "font-medium"}>{lead}</span> : null}
+      {items.length > 0 ? (
+        <ul className={cn("space-y-1", lead && "mt-1.5", small && "space-y-0.5")}>
+          {items.map((it) => (
+            <li key={it.marker} className="flex gap-1.5">
+              <span className="numeral shrink-0 text-muted-foreground/60">{it.marker}</span>
+              <span className="min-w-0">{it.text}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {seeAlso.length > 0 ? (
+        <p
+          className={cn(
+            "mt-1.5 text-[11px] font-normal text-muted-foreground",
+            small && "text-[10px]",
+          )}
+        >
+          See also {seeAlso.join(" · ")}
+        </p>
+      ) : null}
+      {missing.length > 0 ? (
+        <p
+          className={cn(
+            "mt-1 text-[11px] font-normal text-muted-foreground/70",
+            small && "text-[10px]",
+          )}
+          title="The board numbers these sub-points but the transcription has no text for them. Check the specification."
+        >
+          {missing.join(" ")} not transcribed — check the spec
+        </p>
+      ) : null}
+    </>
+  );
+}
+
 /**
  * One topic's move, as a bar either side of a centre line.
  *
@@ -1061,11 +1112,13 @@ function FullPlanTab({
                         {isOpen && slice.length > 0 ? (
                           <ul className="mt-2 space-y-0.5">
                             {slice.map((sp) => (
-                              <li
-                                key={sp.id}
-                                className="text-[11px] leading-relaxed text-muted-foreground"
-                              >
-                                <span className="font-mono">{sp.code}</span> {sp.title}
+                              <li key={sp.id} className="flex gap-2 leading-relaxed">
+                                <span className="numeral mt-px shrink-0 rounded bg-[color:color-mix(in_oklab,var(--tint)_12%,transparent)] px-1 py-px text-[10px] text-[color:var(--tint)]">
+                                  {sp.code}
+                                </span>
+                                <span className="min-w-0 flex-1 text-[11px] text-muted-foreground">
+                                  <SpecStatementText title={sp.title} size="xs" />
+                                </span>
                               </li>
                             ))}
                           </ul>

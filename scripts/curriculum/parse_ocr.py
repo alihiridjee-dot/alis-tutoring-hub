@@ -144,18 +144,60 @@ def parse(path: str):
 # gap between words can never be mistaken for the gutter.
 GUTTER_ANCHOR = 58
 
+# A roman sub-item marker and nothing else: "(ii)", "( iii )".
+BARE_SUB_ITEM = re.compile(r"^\s*\(\s*(?:i{1,3}|iv|vi{0,3}|ix|x)\s*\)\s*$")
+
+# Where the guidance column starts when it has collapsed onto the outcome with
+# no gap wide enough to see. These codes only ever appear in guidance.
+GUIDANCE_CODE = re.compile(r"\b(?:PAG\s*\d|M\d\.\d|HSW\s*\d)")
+
 
 def cut_guidance(raw: str) -> str:
-    """Keep only the Learning outcomes column of a two-column row."""
+    """
+    Keep only the Learning outcomes column of a two-column row.
+
+    One exception, and it costs real content without it. OCR sometimes typesets
+    a roman sub-item's text far to the right — past where the guidance column
+    normally starts — while leaving only its marker on the left:
+
+        (ii)                                              use of the term conjugate acid–base pairs
+
+    Cutting at the gutter there keeps "(ii)" and throws the outcome away, which
+    is how ten H432 statements came to end in a bare "(ii) (iii)" with the
+    content missing from the curriculum entirely. A line whose left column holds
+    NOTHING BUT a marker cannot be a two-column row — there is no outcome on the
+    left for that guidance to sit beside — so the right-hand text is the outcome
+    and is kept.
+    """
     line = raw.rstrip()
     if len(line) <= GUTTER_ANCHOR:
         return line
     m = re.search(r"\s{3,}", line[GUTTER_ANCHOR:])
-    return line[: GUTTER_ANCHOR + m.start()].rstrip() if m else line
+    if not m:
+        return line
+    left = line[: GUTTER_ANCHOR + m.start()].rstrip()
+    if BARE_SUB_ITEM.match(left):
+        right = line[GUTTER_ANCHOR + m.end() :].strip()
+        # On some of these rows the guidance has collapsed onto the end of the
+        # outcome with only a single space between them — "halogens to form
+        # dihaloalkanes, including PAG7 (see also 6.3.1 c)". Position cannot
+        # separate those, but the code can: everything from the first guidance
+        # marker onwards belongs to the other column.
+        g = GUIDANCE_CODE.search(right)
+        if g:
+            right = right[: g.start()].rstrip()
+        # Rejoin the two halves as the single line the outcome really is.
+        return f"{left.strip()} {right}".rstrip()
+    return left
 
 
 def num_of(section):
     return section["code"]
+
+
+# A sub-item marker with nothing after it: the board numbers a point we hold no
+# text for. Content missing from the curriculum, not a formatting nit.
+EMPTY_SUB_ITEM = re.compile(r"\(\s*(?:i{1,3}|iv|vi{0,3}|ix|x)\s*\)\s*(?:\(|$)")
 
 
 def validate(name, sections):
@@ -165,6 +207,10 @@ def validate(name, sections):
         for p in s["points"]:
             if BLEED.search(p["title"]):
                 out.append(f"{name} {p['code']}: guidance bleed -> {p['title'][:60]}")
+            if EMPTY_SUB_ITEM.search(p["title"]):
+                # Ten of these went unnoticed until they showed up on a
+                # student's weekly plan as a bare "(ii) (iii)".
+                out.append(f"{name} {p['code']}: sub-item with no text -> {p['title'][-70:]}")
             if len(p["title"]) > 1500:
                 out.append(f"{name} {p['code']}: runaway title ({len(p['title'])} chars)")
             if len(p["title"]) < 12:
