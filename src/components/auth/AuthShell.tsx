@@ -20,9 +20,9 @@ export function AuthShell({ children }: { children: ReactNode }) {
 
       <div className="w-full max-w-md">
         <div className="relative z-10 flex translate-y-4 items-end justify-center gap-1 pl-6">
-          <Mascot name="cell" size={58} />
-          <Mascot name="flask" size={66} mood="wink" />
-          <Mascot name="bolt" size={54} />
+          <Mascot name="cell" size={58} className="[--idle-delay:-2.4s]" />
+          <Mascot name="flask" size={66} mood="wink" className="[--idle-delay:0s]" />
+          <Mascot name="bolt" size={54} className="[--idle-delay:-1.2s]" />
         </div>
         <div className="pop-card pop-card-hero rise-in relative p-6 sm:p-8">{children}</div>
       </div>

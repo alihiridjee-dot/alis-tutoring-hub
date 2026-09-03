@@ -218,7 +218,13 @@ export function SpecPointSwipeModal({
               ) : (
                 <div className="relative">
                   <Confetti />
-                  <Mascot name="star" mood="proud" size={96} idle={false} className="mx-auto cheer" />
+                  <Mascot
+                    name="star"
+                    mood="proud"
+                    size={96}
+                    idle={false}
+                    className="mx-auto cheer"
+                  />
                   <span className="sticker stamp-in mt-3 inline-flex">
                     <Check className="size-3.5" aria-hidden />
                     Topic rated
@@ -249,10 +255,7 @@ export function SpecPointSwipeModal({
             {/* A segmented bar, one cell per point, so the deck shows how much is
                 left without a second line of text saying so. */}
             <div className="flex items-center gap-3">
-              <span
-                aria-hidden
-                className="flex h-1.5 flex-1 gap-0.5 overflow-hidden rounded-full"
-              >
+              <span aria-hidden className="flex h-1.5 flex-1 gap-0.5 overflow-hidden rounded-full">
                 {points.map((p, i) => (
                   <span
                     key={p.id}

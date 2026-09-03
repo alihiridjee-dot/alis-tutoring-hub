@@ -38,7 +38,7 @@ import { FocusKey, FocusTopicRow, FocusedTopicsLabel } from "@/components/app/Fo
 import { EmptyState, ErrorNote, Meter, MasteryPill, Spinner } from "@/components/app/Shared";
 import { BANDS, bandOf, useBoardState, type BandId } from "@/lib/bands";
 import { masteryFromRow, type ScheduleRow } from "@/lib/fsrs";
-import { bandForWeek, weekSliceOf, weeksOf, type FocusBand } from "@/lib/pacing";
+import { bandForWeek, weekSliceOf, weeksOf, weightOf, type FocusBand } from "@/lib/pacing";
 import {
   SETTLED_THRESHOLD,
   useAcknowledgePlan,
@@ -157,7 +157,10 @@ export function StudentPlanner({
           </div>
         ) : null}
 
-        <nav className="tab-row scroll-none max-w-full overflow-x-auto" aria-label="Planner sections">
+        <nav
+          className="tab-row scroll-none max-w-full overflow-x-auto"
+          aria-label="Planner sections"
+        >
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
               key={key}
@@ -167,7 +170,7 @@ export function StudentPlanner({
               data-active={tab === key}
               className="tab-item shrink-0"
             >
-              <Icon className="size-4" aria-hidden />
+              <Icon className="tab-pop size-4" aria-hidden />
               {label}
             </button>
           ))}
@@ -324,7 +327,9 @@ function ThisWeekTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="eyebrow">This week</p>
-          <p className="font-display mt-1 text-2xl font-extrabold">Week of {formatWeek(thisWeek)}</p>
+          <p className="font-display mt-1 text-2xl font-extrabold">
+            Week of {formatWeek(thisWeek)}
+          </p>
         </div>
         <div className="flex items-center gap-2.5">
           <span className="chip">
@@ -672,6 +677,21 @@ function FullPlanTab({
         </div>
       ) : null}
 
+      {roadmap.focusLoad.overloaded ? (
+        <div className="tint-amber pop-card pop-card-flat p-4 text-sm">
+          <p className="font-display flex items-center gap-2 text-base font-extrabold text-[color:var(--tint)]">
+            <AlertTriangle className="size-4" aria-hidden />
+            There&apos;s more revision than teaching in this plan
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+            The topics marked as shaky add up to about {roadmap.focusLoad.ratio.toFixed(1)}&times;
+            the new material each week between now and the exam. Every one of them is still
+            scheduled, but the weeks will be heavy. Ali may want to look at which of them really
+            need three passes.
+          </p>
+        </div>
+      ) : null}
+
       {roadmap.needsAck ? (
         <div className="tint-amber pop-card pop-card-flat p-4">
           <p className="font-display flex items-center gap-2 text-base font-extrabold text-[color:var(--tint)]">
@@ -751,7 +771,7 @@ function FullPlanTab({
             // This week's slice of the topic, not the whole topic: a band says
             // "Topic 1, six weeks", and which three points belong to THIS week
             // existed nowhere before.
-            const slice = core ? weekSliceOf(core, wk, allPoints) : [];
+            const slice = core ? weekSliceOf(core, wk, allPoints, weightOf) : [];
             const rowKey = core ? `${core.topicId}@${wk}` : "";
             const isOpen = open.has(rowKey);
             const note = notesQ.data?.get(wk);

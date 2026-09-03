@@ -3,9 +3,11 @@
  *
  * Rules of the house, so this stays charming rather than childish:
  *
- *  1. Characters appear in EMPTY STATES, MILESTONES and the SORT flow only.
- *     Never in a dense working screen — a planner grid with a cartoon in it
- *     stops being a tool. `<Mascot>` is the only export that draws a face.
+ *  1. Characters appear in EMPTY STATES, MILESTONES, the SORT flow, and as the
+ *     ONE character peeking over the dashboard's headline card. Nowhere else —
+ *     a planner grid with a cartoon in it stops being a tool, and the charm of
+ *     the peek is that it is the only one. `<Mascot>` is the only export that
+ *     draws a face.
  *  2. Everything is drawn from `currentColor` plus `--tint`, so a doodle
  *     dropped inside `.tint-bio` comes out green with no props.
  *  3. Strokes are 2.5–3 units on a 120 viewBox — the same weight as the card
@@ -18,9 +20,15 @@ import { cn } from "@/lib/utils";
 
 export type Mood = "happy" | "wink" | "wow" | "sleepy" | "proud";
 
-/** Every character wears the same face, so they read as one cast. */
+/**
+ * Every character wears the same face, so they read as one cast.
+ *
+ * The open-eyed moods blink; `wink` and `sleepy` do not, because squashing an
+ * eye that is already a closed curve just makes the drawing twitch.
+ */
 function Face({ mood = "happy", x = 60, y = 60 }: { mood?: Mood; x?: number; y?: number }) {
   const eye = "currentColor";
+  const blinks = mood !== "wink" && mood !== "sleepy";
   return (
     <g transform={`translate(${x} ${y})`} stroke={eye} strokeWidth={3} strokeLinecap="round">
       {mood === "sleepy" ? (
@@ -33,15 +41,17 @@ function Face({ mood = "happy", x = 60, y = 60 }: { mood?: Mood; x?: number; y?:
           <path d="M-13 -3 q5 -6 10 0" fill="none" />
           <circle cx={8} cy={-3} r={2.6} fill={eye} stroke="none" />
         </>
-      ) : mood === "wow" ? (
-        <>
-          <circle cx={-8} cy={-4} r={3.2} fill={eye} stroke="none" />
-          <circle cx={8} cy={-4} r={3.2} fill={eye} stroke="none" />
-        </>
       ) : (
+        // One group per eye: a single group around both would squash them
+        // TOWARDS EACH OTHER as well as flat, because `fill-box` takes the
+        // origin from the pair's combined bounding box.
         <>
-          <circle cx={-8} cy={-4} r={2.8} fill={eye} stroke="none" />
-          <circle cx={8} cy={-4} r={2.8} fill={eye} stroke="none" />
+          <g className={blinks ? "blink" : undefined}>
+            <circle cx={-8} cy={-4} r={mood === "wow" ? 3.2 : 2.8} fill={eye} stroke="none" />
+          </g>
+          <g className={blinks ? "blink" : undefined}>
+            <circle cx={8} cy={-4} r={mood === "wow" ? 3.2 : 2.8} fill={eye} stroke="none" />
+          </g>
         </>
       )}
 
@@ -64,6 +74,20 @@ function Face({ mood = "happy", x = 60, y = 60 }: { mood?: Mood; x?: number; y?:
 }
 
 export type MascotName = "cell" | "flask" | "bolt" | "star" | "books" | "rocket";
+
+/**
+ * When each character blinks, so a group of them never blinks in unison.
+ * Fixed rather than random: the same value has to come out of the server render
+ * and the client one, or React warns on every page that draws a mascot.
+ */
+const MASCOT_BLINK_DELAY: Record<MascotName, string> = {
+  cell: "0s",
+  flask: "1.7s",
+  bolt: "3.1s",
+  star: "0.9s",
+  books: "2.4s",
+  rocket: "4.2s",
+};
 
 const MASCOT_TINT: Record<MascotName, string> = {
   cell: "tint-bio",
@@ -111,6 +135,7 @@ export function Mascot({
         idle && "idle-tilt",
         className,
       )}
+      style={{ "--blink-delay": MASCOT_BLINK_DELAY[name] } as React.CSSProperties}
     >
       <g
         stroke="currentColor"
@@ -136,7 +161,10 @@ export function Mascot({
 
         {name === "flask" ? (
           <>
-            <path d="M48 16h24M52 16v26L26 92a10 10 0 0 0 9 15h50a10 10 0 0 0 9-15L68 42V16" fill="white" />
+            <path
+              d="M48 16h24M52 16v26L26 92a10 10 0 0 0 9 15h50a10 10 0 0 0 9-15L68 42V16"
+              fill="white"
+            />
             <path d="M39 70h42l14 22a10 10 0 0 1-9 15H34a10 10 0 0 1-9-15Z" fill={fill} />
             <circle cx={34} cy={98} r={3.5} fill={deep} />
             <circle cx={88} cy={98} r={2.5} fill={deep} />
@@ -187,10 +215,7 @@ export function Mascot({
 
         {name === "rocket" ? (
           <>
-            <path
-              d="M60 8c16 14 22 32 22 50v14H38V58c0-18 6-36 22-50Z"
-              fill={fill}
-            />
+            <path d="M60 8c16 14 22 32 22 50v14H38V58c0-18 6-36 22-50Z" fill={fill} />
             <path d="M38 60 20 78l6 16 12-10M82 60l18 18-6 16-12-10" fill="white" />
             <circle cx={60} cy={44} r={11} fill="white" />
             <Face mood={mood} y={44} />
@@ -243,23 +268,6 @@ export function Sparkles({ className, ...props }: SVGProps<SVGSVGElement>) {
         <path d="M16 2l2.6 7.4L26 12l-7.4 2.6L16 22l-2.6-7.4L6 12l7.4-2.6Z" />
         <path d="M26 20l1.3 3.7L31 25l-3.7 1.3L26 30l-1.3-3.7L21 25l3.7-1.3Z" opacity={0.75} />
         <path d="M6 20l1 2.8L9.8 24 7 25l-1 2.8L5 25l-2.8-1L5 22.8Z" opacity={0.5} />
-      </g>
-    </svg>
-  );
-}
-
-/** Curved arrow pointing at the thing to do next. */
-export function ArrowDoodle({ className, ...props }: SVGProps<SVGSVGElement>) {
-  return (
-    <svg
-      viewBox="0 0 80 60"
-      aria-hidden
-      className={cn("size-12 text-[color:var(--tint)]", className)}
-      {...props}
-    >
-      <g fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round">
-        <path d="M6 10c26-4 44 8 52 34" />
-        <path d="M46 40l12 6 4-13" />
       </g>
     </svg>
   );

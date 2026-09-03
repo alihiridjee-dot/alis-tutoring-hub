@@ -7,6 +7,9 @@ import {
   diffPacing,
   signatureOf,
   selectWeekPoints,
+  focusDemand,
+  focusLoadFor,
+  weightOf,
   REVISION_WEEKS,
   type Band,
 } from "@/lib/pacing";
@@ -324,5 +327,147 @@ describe("lane labelling with no ratings at all", () => {
       settled: new Set(),
     });
     expect(picked[0]?.lane).toBe("core");
+  });
+});
+
+describe("weight", () => {
+  test("a missing or nonsense weight is an average point", () => {
+    expect(weightOf({})).toBe(1);
+    expect(weightOf({ weight: null })).toBe(1);
+    expect(weightOf({ weight: 0 })).toBe(1);
+    expect(weightOf({ weight: -2 })).toBe(1);
+    expect(weightOf({ weight: 2.5 })).toBe(2.5);
+  });
+
+  test("a topic's band is sized by its work, not its row count", () => {
+    // Same number of points either way; b's are three times the size. Counting
+    // rows gives the two topics equal bands, which is the bug.
+    const topics = [topic("a", 0), topic("b", 1)];
+    const counts = new Map([
+      ["a", 10],
+      ["b", 10],
+    ]);
+    const base = {
+      topics,
+      pointCountByTopic: counts,
+      programStart: "2026-09-07",
+      examDate: "2027-06-07",
+      now: new Date("2026-09-07T09:00:00"),
+    };
+
+    const byCount = computePacing(base);
+    const byWork = computePacing({
+      ...base,
+      pointWeightByTopic: new Map([
+        ["a", 10],
+        ["b", 30],
+      ]),
+    });
+
+    const weeks = (bands: Band[], id: string) => bands.find((x) => x.topicId === id)!.weeks;
+    expect(weeks(byCount, "a")).toBe(weeks(byCount, "b"));
+    expect(weeks(byWork, "b")).toBeGreaterThan(weeks(byWork, "a"));
+    // The count is still what the roadmap displays.
+    expect(byWork.find((x) => x.topicId === "b")!.pointCount).toBe(10);
+  });
+
+  test("an unweighted course paces exactly as it did before", () => {
+    const topics = [topic("a", 0), topic("b", 1), topic("c", 2)];
+    const counts = new Map([
+      ["a", 7],
+      ["b", 19],
+      ["c", 4],
+    ]);
+    const base = {
+      topics,
+      pointCountByTopic: counts,
+      programStart: "2026-09-07",
+      examDate: "2027-06-07",
+      now: new Date("2026-09-07T09:00:00"),
+    };
+    // Every point at the default weight 1 sums to the row count per topic.
+    expect(computePacing({ ...base, pointWeightByTopic: counts })).toEqual(computePacing(base));
+  });
+
+  test("the week's spine is budgeted in work, so a heavy point crowds out others", () => {
+    const topics = [topic("a", 0)];
+    const bands = computePacing({
+      topics,
+      pointCountByTopic: new Map([["a", 4]]),
+      pointWeightByTopic: new Map([["a", 4]]),
+      programStart: "2026-09-07",
+      // Two teaching weeks, so the topic's four points are cut 2/2 by count.
+      examDate: "2026-10-12",
+      now: new Date("2026-09-07T09:00:00"),
+    });
+    const first = bands.find((b) => b.kind === "teach")!;
+
+    const light = [0, 1, 2, 3].map((i) => ({ id: `a${i}`, sort_order: i, weight: 1 }));
+    // The same four points, but the first is worth the whole week on its own.
+    const heavyFirst = light.map((p, i) => (i === 0 ? { ...p, weight: 4 } : p));
+
+    const pick = (points: typeof light) =>
+      selectWeekPoints({
+        bands,
+        weekStart: first.startWeek,
+        pointsByTopic: new Map([["a", points]]),
+        confidence: new Map(),
+        stability: new Map(),
+        settled: new Set(),
+      }).length;
+
+    expect(pick(heavyFirst)).toBeLessThan(pick(light));
+    // Never empty: one point always goes in, however heavy it is.
+    expect(pick(heavyFirst)).toBeGreaterThan(0);
+  });
+});
+
+describe("focus load", () => {
+  const candidate = (id: string, mastery: number, weight?: number) => ({
+    specPointId: id,
+    topicId: "t",
+    topicTitle: "T",
+    code: id,
+    pointTitle: id,
+    mastery,
+    weight,
+  });
+
+  test("demand charges each revisit at its own point's size", () => {
+    // One red point: three revisits. At weight 2 that is six units of work,
+    // not three slots.
+    expect(focusDemand([candidate("p", 20)])).toBe(3);
+    expect(focusDemand([candidate("p", 20, 2)])).toBe(6);
+    // Amber comes back once.
+    expect(focusDemand([candidate("p", 50)])).toBe(1);
+  });
+
+  test("overloaded means revision outweighs the teaching it sits on", () => {
+    const bands: Band[] = [
+      {
+        topicId: "a",
+        title: "A",
+        startWeek: "2026-08-24",
+        endWeek: "2026-10-26",
+        weeks: 10,
+        pointCount: 100,
+        kind: "teach",
+      },
+    ];
+    // 100 units of teaching over 10 weeks is a spine of 10 a week.
+    const ok = focusLoadFor({ budget: 5, topicWeights: [100], bands });
+    expect(ok.spine).toBe(10);
+    expect(ok.ratio).toBe(0.5);
+    expect(ok.overloaded).toBe(false);
+
+    expect(focusLoadFor({ budget: 12, topicWeights: [100], bands }).overloaded).toBe(true);
+  });
+
+  test("no teaching left to compare against is not an overload", () => {
+    expect(focusLoadFor({ budget: 20, topicWeights: [], bands: [] })).toMatchObject({
+      spine: 0,
+      ratio: 0,
+      overloaded: false,
+    });
   });
 });

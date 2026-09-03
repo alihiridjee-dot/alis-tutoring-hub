@@ -209,10 +209,7 @@ export function ConfidenceBoard({
               )}
             >
               <div className="mb-3 flex items-center gap-2 px-1">
-                <span
-                  className="size-3 shrink-0 rounded-full bg-[color:var(--tint)]"
-                  aria-hidden
-                />
+                <span className="size-3 shrink-0 rounded-full bg-[color:var(--tint)]" aria-hidden />
                 <h3 className="font-display text-base font-extrabold text-[color:var(--tint)]">
                   {band.label}
                 </h3>

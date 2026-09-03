@@ -24,12 +24,17 @@ type Topic = Database["public"]["Tables"]["topics"]["Row"];
 export const REVISION_WEEKS = 3;
 
 /**
- * How many spec points the revisit lane may carry in one week.
+ * The **floor** on a week's revision allowance, in weight — not the cap.
  *
  * FSRS resurfaces everything the moment it is rated, which would flood a single
- * week. This budget caps the REVISIT lane only — never the teaching spine,
- * whose weekly share is added on top. One shared cap starves teaching entirely
- * while any backlog exists.
+ * week. This budget applies to the REVISIT lane only — never the teaching
+ * spine, whose weekly share is added on top. One shared cap starves teaching
+ * entirely while any backlog exists.
+ *
+ * Six is the same six it always was: weights are normalised per course to a
+ * mean of 1.0, so on a course with a small backlog it still buys about six
+ * average points, and a course with no measured weights behaves exactly as it
+ * did. What it is no longer is a ceiling — see {@link budgetFor}.
  */
 export const FOCUS_BUDGET = 6;
 
@@ -45,9 +50,28 @@ export type Band = {
   kind: "teach" | "revision";
 };
 
+/**
+ * A spec point's share of a week's work; absent or non-positive means average.
+ *
+ * `spec_points.weight` defaults to 1, so a course with no measured weights
+ * paces exactly as it did when this module counted rows.
+ */
+export function weightOf(p: { weight?: number | null }): number {
+  return p.weight && p.weight > 0 ? p.weight : 1;
+}
+
 export type PacingInput = {
   topics: Topic[];
+  /** How many points each topic has. Shown on the roadmap; not what sizes it. */
   pointCountByTopic: Map<string, number>;
+  /**
+   * The sum of each topic's points' weights — its share of the timetable.
+   *
+   * Sizing by COUNT gave sparse topics too many weeks and dense ones too few:
+   * twelve one-line recall statements outranked eight practicals. Falls back to
+   * the count when a course has no measured weights, which is the same number.
+   */
+  pointWeightByTopic?: Map<string, number>;
   /** Monday teaching began. */
   programStart: string;
   examDate: string;
@@ -116,7 +140,9 @@ export function computePacing(input: PacingInput): Band[] {
   const flowStart = input.programStart > thisMonday ? input.programStart : thisMonday;
 
   const teachingWeeks = Math.max(topics.length, weeksBetween(flowStart, revisionStart));
-  const sizes = topics.map((t) => input.pointCountByTopic.get(t.id) ?? 1);
+  const counts = topics.map((t) => input.pointCountByTopic.get(t.id) ?? 1);
+  // Weeks are shared out by WORK; the count is kept only for display.
+  const sizes = topics.map((t, i) => input.pointWeightByTopic?.get(t.id) ?? counts[i]);
   const spans = distributeWeeks(sizes, teachingWeeks);
 
   const bands: Band[] = [];
@@ -133,7 +159,7 @@ export function computePacing(input: PacingInput): Band[] {
         startWeek: cursor,
         endWeek: cursor,
         weeks: 0,
-        pointCount: sizes[i],
+        pointCount: counts[i],
         kind: "teach",
       });
       return;
@@ -144,7 +170,7 @@ export function computePacing(input: PacingInput): Band[] {
       startWeek: cursor,
       endWeek: addWeeks(cursor, weeks - 1),
       weeks,
-      pointCount: sizes[i],
+      pointCount: counts[i],
       kind: "teach",
     });
     cursor = addWeeks(cursor, weeks);
@@ -234,8 +260,8 @@ export type WeekPoint = {
 export type WeekInput = {
   bands: Band[];
   weekStart: string;
-  /** Spec points grouped by topic, in teaching order. */
-  pointsByTopic: Map<string, { id: string; sort_order: number }[]>;
+  /** Spec points grouped by topic, in teaching order. `weight` may be absent. */
+  pointsByTopic: Map<string, { id: string; sort_order: number; weight?: number | null }[]>;
   /** Confidence 0–100 per spec point, from the sort and any re-rating. */
   confidence: Map<string, number>;
   /** Stability in days per spec point; absent means no card yet. */
@@ -294,23 +320,51 @@ export function selectWeekPoints(input: WeekInput): WeekPoint[] {
   // curriculum order. Stragglers lead: slicing by week index would shift as
   // points settle and silently step over undone ones.
   const owed: string[] = [];
+  const weightById = new Map<string, number>();
   for (const band of input.bands) {
     if (band.kind !== "teach" || band.weeks === 0) continue;
     if (band.startWeek > input.weekStart) continue;
     for (const p of input.pointsByTopic.get(band.topicId) ?? []) {
+      weightById.set(p.id, weightOf(p));
       if (!input.settled.has(p.id)) owed.push(p.id);
     }
   }
 
   const current = bandForWeek(input.bands, input.weekStart);
+  const currentPoints = current ? (input.pointsByTopic.get(current.topicId) ?? []) : [];
+
+  /**
+   * This week's share of the spine, in WORK rather than in rows.
+   *
+   * It is the weight of the slice the roadmap shows for this week — the same
+   * `splitAcrossWeeks` cut, so the year view and the weekly view agree about
+   * how big a week is. Taking `ceil(points / weeks)` rows instead meant a week
+   * of three heavy practicals and a week of three definitions were the same
+   * week to the planner.
+   */
   const share = current
-    ? Math.max(
-        1,
-        Math.ceil((input.pointsByTopic.get(current.topicId)?.length ?? 0) / current.weeks),
+    ? weekSliceOf(current, input.weekStart, currentPoints, weightOf).reduce(
+        (s, p) => s + weightOf(p),
+        0,
       )
     : 0;
 
-  for (const id of owed.slice(0, share)) {
+  // Fill up to that budget, and never leave the spine empty: one point always
+  // goes in, even when it is heavier on its own than the whole week's share.
+  // No band covers this week — a gap, or past the end of the programme — and
+  // the spine is empty, exactly as it was when the share was a row count.
+  const spine: string[] = [];
+  let used = 0;
+  if (share > 0) {
+    for (const id of owed) {
+      const w = weightById.get(id) ?? 1;
+      if (spine.length > 0 && used + w > share) break;
+      spine.push(id);
+      used += w;
+    }
+  }
+
+  for (const id of spine) {
     taken.add(id);
     picked.push({
       spec_point_id: id,
@@ -336,6 +390,7 @@ export function selectWeekPoints(input: WeekInput): WeekPoint[] {
   const candidates: string[] = [];
   for (const [, points] of input.pointsByTopic) {
     for (const p of points) {
+      weightById.set(p.id, weightOf(p));
       if (taken.has(p.id)) continue;
       const hasEvidence = input.stability.has(p.id) || input.confidence.has(p.id);
       if (!hasEvidence) continue;
@@ -347,7 +402,15 @@ export function selectWeekPoints(input: WeekInput): WeekPoint[] {
 
   candidates.sort((a, b) => byFragility(a, b, input.stability, input.confidence));
 
-  for (const id of candidates.slice(0, budget)) {
+  // The budget is spent in WORK, for the same reason the spine's is: six
+  // revisits is a different afternoon depending on which six. A week holding
+  // one heavy practical and two definitions is full; six definitions is also
+  // full. Counting slots made the first look two-thirds empty.
+  let spent = 0;
+  for (const id of candidates) {
+    const w = weightById.get(id) ?? 1;
+    if (spent > 0 && spent + w > budget) break;
+    spent += w;
     picked.push({
       spec_point_id: id,
       lane: "focus",
@@ -378,6 +441,8 @@ export type FocusCandidate = {
   pointTitle: string;
   /** 0–100 mastery — lower is weaker, and weaker wins the slot. */
   mastery: number;
+  /** Its share of a week's work; absent means average, i.e. 1. */
+  weight?: number;
 };
 
 /** One topic's revision work in one week. */
@@ -392,9 +457,64 @@ export type FocusBand = {
   mastery: number;
 };
 
-/** The total revision work a set of candidates is asking for, in points. */
+/**
+ * The total revision work a set of candidates is asking for, in weight: every
+ * point's revisits, each charged at that point's own size.
+ *
+ * This is the number the year has to absorb. Nothing else here knew it — the
+ * scheduler used to discover it a week at a time, by running out of room —
+ * which is why the budget could be set without reference to it.
+ */
 export function focusDemand(candidates: FocusCandidate[]): number {
-  return candidates.reduce((s, c) => s + revisitCount(c.mastery), 0);
+  return candidates.reduce((s, c) => s + revisitCount(c.mastery) * weightOf(c), 0);
+}
+
+/**
+ * How heavy the revision lane has come out, measured against the teaching it is
+ * supposed to sit on top of.
+ *
+ * The comparison is the point. "Is 21 units a week too much?" has no answer in
+ * the abstract — it depends on the course, the runway and how the spec is
+ * weighted — but "revision is now heavier than the new material" is a judgement
+ * anyone can make, and it stays true when any of those three change. The
+ * alternative is a hand-picked number that silently rots.
+ */
+export type FocusLoad = {
+  /** Revision work per week, in weight: what the lane was budgeted at. */
+  budget: number;
+  /** New material per week, in weight: the spine's pace, and the yardstick. */
+  spine: number;
+  /** Revision as a multiple of new material; 0 when there is no spine. */
+  ratio: number;
+  /** Revision has come out heavier than the teaching it is meant to support. */
+  overloaded: boolean;
+};
+
+/**
+ * Weigh the revision lane against the spine.
+ *
+ * The lane is meant to run at roughly half the spine — revision supporting new
+ * material, not competing with it. Passing the spine outright means the ratings
+ * have asked for a year that does not fit in the year, which is worth saying
+ * out loud to somebody who can act on it.
+ */
+export function focusLoadFor(params: {
+  budget: number;
+  /** Each topic's total work, the same figure that sizes its band. */
+  topicWeights: number[];
+  bands: Band[];
+}): FocusLoad {
+  const weeks = params.bands
+    .filter((b) => b.kind === "teach" && b.weeks > 0)
+    .reduce((s, b) => s + b.weeks, 0);
+  const work = params.topicWeights.reduce((s, w) => s + Math.max(w, 1), 0);
+  const spine = weeks > 0 ? work / weeks : 0;
+  return {
+    budget: params.budget,
+    spine,
+    ratio: spine > 0 ? params.budget / spine : 0,
+    overloaded: spine > 0 && params.budget > spine,
+  };
 }
 
 /**
@@ -412,6 +532,25 @@ export function focusDemand(candidates: FocusCandidate[]): number {
 function budgetFor(demand: number, runway: number): number {
   if (runway <= 0) return FOCUS_BUDGET;
   return Math.max(FOCUS_BUDGET, Math.ceil(demand / runway));
+}
+
+/**
+ * The allowance {@link scheduleFocusWeeks} will use, without running it.
+ *
+ * The scheduler works this out for itself; this exists so callers can weigh the
+ * same number against the spine ({@link focusLoadFor}) rather than guessing at
+ * it or re-deriving the runway by hand.
+ */
+export function focusBudgetFor(params: {
+  candidates: FocusCandidate[];
+  currentMonday: string;
+  examDate: string;
+  revisionWeeks?: number;
+}): number {
+  const revisionWeeks = params.revisionWeeks ?? REVISION_WEEKS;
+  const examMonday = toDateKey(mondayOf(new Date(`${params.examDate}T00:00:00`)));
+  const runway = weeksBetween(params.currentMonday, addWeeks(examMonday, -revisionWeeks));
+  return budgetFor(focusDemand(params.candidates), runway);
 }
 
 /**
@@ -515,8 +654,9 @@ export function scheduleFocusWeeks(params: {
     let owedTotal = 0;
     for (const t of tickets) {
       if (t.remaining <= 0) continue;
-      owed.set(t.tier, (owed.get(t.tier) ?? 0) + t.remaining);
-      owedTotal += t.remaining;
+      const w = t.remaining * weightOf(t.c);
+      owed.set(t.tier, (owed.get(t.tier) ?? 0) + w);
+      owedTotal += w;
     }
     if (owedTotal <= 0) break; // the whole backlog is scheduled
     for (const [tier, w] of owed)
@@ -527,8 +667,12 @@ export function scheduleFocusWeeks(params: {
       const list = placedByWeek.get(wk) ?? [];
       list.push(t.c);
       placedByWeek.set(wk, list);
-      cap -= 1;
-      credit.set(t.tier, (credit.get(t.tier) ?? 0) - 1);
+      // Charged its full weight even when that overruns the week. A point is
+      // the smallest thing a band has, so a heavy one makes for a full week
+      // rather than being split or skipped forever.
+      const cost = weightOf(t.c);
+      cap -= cost;
+      credit.set(t.tier, (credit.get(t.tier) ?? 0) - cost);
       t.remaining--;
       t.nextIdx = wk + gapAfter(t.placed); // next look, a widening gap later
       t.placed++;
@@ -583,27 +727,113 @@ export function scheduleFocusWeeks(params: {
 }
 
 /**
- * A topic's points divided evenly across the weeks of its run.
+ * A topic's points cut into weeks of equal WORK.
  *
- * Even, not `ceil`-chunked: thirteen points over five weeks went 3/3/3/3/1, so
- * the last week of every topic was a stub, and with enough weeks the trailing
- * ones came out empty — a week of the plan with nothing on the spine at all.
+ * Equal counts were the old rule, and they assume points are interchangeable.
+ * They are not: on Edexcel GCSE Physics the heaviest point is three times the
+ * lightest, so "three points this week" was anywhere between twenty minutes and
+ * an hour and a half.
+ *
+ * Exact minimum-maximum partition, not a greedy fill. `heaviest[i][j]` is the
+ * lightest possible heaviest week when the first i points are dealt into j
+ * weeks, and `cut` records where the last week started so the split can be
+ * walked back out. Points stay in spec order — a week is always a contiguous
+ * run — so this only chooses where the boundaries fall, never what goes where.
+ *
+ * Two objectives, in order: make the heaviest week as light as possible, then
+ * make the lightest week as heavy as possible. The second matters. Minimising
+ * the maximum alone leaves many equally good splits, and the arbitrary one is
+ * usually the split that dumps the remainder into a single stub week — which is
+ * the failure the old `splitEvenly` existed to avoid and would reintroduce.
+ *
+ * Deliberately still a flat, static chunking of the topic's whole point list:
+ * week 3's share is week 3's share whether or not weeks 1 and 2 got done, so
+ * the plan a student looks at in October says the same thing it said in July.
+ * Catching up on what was missed is {@link selectWeekPoints}'s job, not the
+ * calendar's.
  */
-export function splitEvenly(total: number, weeks: number): number[] {
-  if (weeks <= 0) return [];
-  const base = Math.floor(total / weeks);
-  let extra = total - base * weeks;
-  return Array.from({ length: weeks }, () => base + (extra-- > 0 ? 1 : 0));
+export function splitAcrossWeeks<T>(
+  points: T[],
+  weeks: number,
+  weight: (p: T) => number = () => 1,
+): T[][] {
+  const w = Math.max(1, Math.floor(weeks));
+  if (points.length === 0) return Array.from({ length: w }, () => []);
+  // More weeks than points: one each, then nothing left to give.
+  if (w >= points.length)
+    return Array.from({ length: w }, (_, i) => (i < points.length ? [points[i]] : []));
+
+  const n = points.length;
+  const w0 = points.map(weight);
+  const prefix = [0];
+  for (let i = 0; i < n; i++) prefix.push(prefix[i] + Math.max(0, w0[i]));
+
+  const heaviest: number[][] = Array.from({ length: n + 1 }, () => new Array(w + 1).fill(Infinity));
+  const lightest: number[][] = Array.from({ length: n + 1 }, () =>
+    new Array(w + 1).fill(-Infinity),
+  );
+  const cut: number[][] = Array.from({ length: n + 1 }, () => new Array(w + 1).fill(0));
+  for (let j = 0; j <= w; j++) {
+    heaviest[0][j] = 0;
+    lightest[0][j] = Infinity; // no weeks yet — nothing constrains the minimum
+  }
+  for (let i = 1; i <= n; i++) {
+    heaviest[i][1] = prefix[i];
+    lightest[i][1] = prefix[i];
+  }
+  for (let i = 1; i <= n; i++) {
+    for (let j = 2; j <= w; j++) {
+      for (let x = 1; x < i; x++) {
+        const chunk = prefix[i] - prefix[x];
+        const mx = Math.max(heaviest[x][j - 1], chunk);
+        const mn = Math.min(lightest[x][j - 1], chunk);
+        // Better = lighter heaviest week; on a tie, heavier lightest week; on a
+        // full tie, the later cut, so any short week falls at the end of the
+        // run rather than opening it.
+        const better = mx < heaviest[i][j] || (mx === heaviest[i][j] && mn >= lightest[i][j]);
+        if (better) {
+          heaviest[i][j] = mx;
+          lightest[i][j] = mn;
+          cut[i][j] = x;
+        }
+      }
+    }
+  }
+
+  const sizes: number[] = [];
+  let i = n;
+  for (let j = w; j >= 1; j--) {
+    const from = j === 1 ? 0 : cut[i][j];
+    sizes.unshift(i - from);
+    i = from;
+  }
+
+  const out: T[][] = [];
+  let at = 0;
+  for (const size of sizes) {
+    out.push(points.slice(at, at + size));
+    at += size;
+  }
+  return out;
 }
 
-/** The slice of a teach band's points that belongs to one of its weeks. */
-export function weekSliceOf<T>(band: Band, weekStart: string, points: T[]): T[] {
+/**
+ * The slice of a teach band's points that belongs to one of its weeks.
+ *
+ * `weight` is optional so callers that only have ids still work; pass it
+ * wherever the spec points themselves are to hand, or the split falls back to
+ * equal counts.
+ */
+export function weekSliceOf<T>(
+  band: Band,
+  weekStart: string,
+  points: T[],
+  weight: (p: T) => number = () => 1,
+): T[] {
   if (band.kind !== "teach" || band.weeks <= 0) return points;
   const idx = weeksBetween(band.startWeek, weekStart);
   if (idx < 0 || idx >= band.weeks) return [];
-  const sizes = splitEvenly(points.length, band.weeks);
-  const from = sizes.slice(0, idx).reduce((a, b) => a + b, 0);
-  return points.slice(from, from + sizes[idx]);
+  return splitAcrossWeeks(points, band.weeks, weight)[idx] ?? [];
 }
 
 /** Every Monday the programme covers, first band to last. */

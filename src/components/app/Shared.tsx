@@ -346,21 +346,3 @@ export function Milestone({
     </div>
   );
 }
-
-/** Subject label with its colour and glyph. Pair with a `tint-*` wrapper. */
-export function SubjectPill({
-  label,
-  icon: Icon,
-  className,
-}: {
-  label: string;
-  icon?: LucideIcon | null;
-  className?: string;
-}) {
-  return (
-    <span className={cn("chip", className)}>
-      {Icon ? <Icon className="size-3.5" aria-hidden /> : null}
-      {label}
-    </span>
-  );
-}
